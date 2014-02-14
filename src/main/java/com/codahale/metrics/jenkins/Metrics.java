@@ -3,11 +3,13 @@ package com.codahale.metrics.jenkins;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheckRegistry;
+import com.codahale.metrics.jenkins.impl.MetricsFilter;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import hudson.Extension;
 import hudson.Plugin;
 import hudson.model.AsyncPeriodicWork;
 import hudson.model.TaskListener;
+import hudson.util.PluginServletFilter;
 import hudson.util.TimeUnit2;
 import jenkins.model.Jenkins;
 
@@ -30,6 +32,7 @@ public class Metrics extends Plugin {
 
     private transient MetricRegistry metricRegistry;
     private transient HealthCheckRegistry healthCheckRegistry;
+    private transient MetricsFilter filter;
 
 
     @CheckForNull
@@ -50,6 +53,12 @@ public class Metrics extends Plugin {
     public void start() throws Exception {
         metricRegistry = new MetricRegistry();
         healthCheckRegistry = new HealthCheckRegistry();
+        filter = new MetricsFilter();
+        PluginServletFilter.addFilter(filter);
+    }
+
+    @Override
+    public void postInitialize() throws Exception {
         for (MetricProvider p: Jenkins.getInstance().getExtensionList(MetricProvider.class)) {
             metricRegistry.registerAll(p.getMetricSet());
         }
@@ -62,6 +71,10 @@ public class Metrics extends Plugin {
 
     @Override
     public void stop() throws Exception {
+        if (filter != null) {
+            PluginServletFilter.removeFilter(filter);
+            filter = null;
+        }
         metricRegistry = null;
         healthCheckRegistry = null;
     }
@@ -87,7 +100,8 @@ public class Metrics extends Plugin {
 
         @Override
         public long getRecurrencePeriod() {
-            return TimeUnit2.MINUTES.toMillis(Math.min(Math.max(1, HEALTH_CHECK_INTERVAL_MINS), TimeUnit2.DAYS.toMinutes(1)));
+            return TimeUnit2.MINUTES.toMillis(Math.min(Math.max(1, HEALTH_CHECK_INTERVAL_MINS),
+                    TimeUnit2.DAYS.toMinutes(1)));
         }
 
         @Override
