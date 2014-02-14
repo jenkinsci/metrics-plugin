@@ -25,11 +25,17 @@
 package com.codahale.metrics.jenkins;
 
 import com.codahale.metrics.MetricSet;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.ExtensionPoint;
 
 /**
- * @author Stephen Connolly
+ * Provides metrics to register.
  */
 public abstract class MetricProvider implements ExtensionPoint {
+    /**
+     * Returns the set of metrics to register.
+     * @return the set of metrics to register.
+     */
+    @NonNull
     public abstract MetricSet getMetricSet();
 }

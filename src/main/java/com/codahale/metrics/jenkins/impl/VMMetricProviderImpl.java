@@ -32,6 +32,7 @@ import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.codahale.metrics.jvm.ThreadStatesGaugeSet;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 
 import java.util.LinkedHashMap;
@@ -57,6 +58,7 @@ public class VMMetricProviderImpl extends MetricProvider {
         map.put(MetricRegistry.name("vm"), new ThreadStatesGaugeSet());
     }
 
+    @NonNull
     @Override
     public MetricSet getMetricSet() {
         return set;

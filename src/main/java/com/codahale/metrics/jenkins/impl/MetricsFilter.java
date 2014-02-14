@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright (c) 2013-4, CloudBees, Inc.
+ * Copyright (c) 2013-2014, CloudBees, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -59,10 +59,8 @@ public class MetricsFilter implements Filter {
     private static final int BAD_REQUEST = 400;
     private static final int NOT_FOUND = 404;
     private static final int SERVER_ERROR = 500;
-
     private final String otherMetricName;
     private final Map<Integer, String> meterNamesByStatusCode;
-
     // initialized after call of init method
     private ConcurrentMap<Integer, Meter> metersByStatusCode;
     private Meter otherMeter;
@@ -85,22 +83,16 @@ public class MetricsFilter implements Filter {
         return meterNamesByStatusCode;
     }
 
-
     public void init(FilterConfig filterConfig) throws ServletException {
         final MetricRegistry metricsRegistry = Metrics.metricRegistry();
 
-        this.metersByStatusCode = new ConcurrentHashMap<Integer, Meter>(meterNamesByStatusCode
-                .size());
+        this.metersByStatusCode = new ConcurrentHashMap<Integer, Meter>(meterNamesByStatusCode.size());
         for (Map.Entry<Integer, String> entry : meterNamesByStatusCode.entrySet()) {
-            metersByStatusCode.put(entry.getKey(),
-                    metricsRegistry.meter(name(MetricsFilter.class, entry.getValue())));
+            metersByStatusCode.put(entry.getKey(), metricsRegistry.meter(name("http", entry.getValue())));
         }
-        this.otherMeter = metricsRegistry.meter(name(MetricsFilter.class,
-                otherMetricName));
-        this.activeRequests = metricsRegistry.counter(name(MetricsFilter.class,
-                "activeRequests"));
-        this.requestTimer = metricsRegistry.timer(name(MetricsFilter.class,
-                "requests"));
+        this.otherMeter = metricsRegistry.meter(name("http", otherMetricName));
+        this.activeRequests = metricsRegistry.counter(name("http", "activeRequests"));
+        this.requestTimer = metricsRegistry.timer(name("http", "requests"));
 
     }
 
@@ -153,14 +145,14 @@ public class MetricsFilter implements Filter {
             super.sendError(sc, msg);
         }
 
+        public int getStatus() {
+            return httpStatus;
+        }
+
         @Override
         public void setStatus(int sc) {
             httpStatus = sc;
             super.setStatus(sc);
-        }
-
-        public int getStatus() {
-            return httpStatus;
         }
     }
 }

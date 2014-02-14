@@ -25,14 +25,20 @@
 package com.codahale.metrics.jenkins;
 
 import com.codahale.metrics.health.HealthCheck;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.ExtensionPoint;
 
 import java.util.Map;
 
 /**
- * @author Stephen Connolly
+ * Provides {@link HealthCheck} instances to register.
  */
 public abstract class HealthCheckProvider implements ExtensionPoint {
 
+    /**
+     * A map of {@link HealthCheck} instances keyed by name.
+     * @return a map of {@link HealthCheck} instances keyed by name.
+     */
+    @NonNull
     public abstract Map<String, HealthCheck> getHealthChecks();
 }
