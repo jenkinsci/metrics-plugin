@@ -1,3 +1,27 @@
+/*
+ * The MIT License
+ *
+ * Copyright (c) 2014, CloudBees, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
 package com.codahale.metrics.jenkins;
 
 import com.codahale.metrics.MetricRegistry;
@@ -28,7 +52,8 @@ import java.util.logging.Logger;
 public class Metrics extends Plugin {
 
     private static final Logger LOGGER = Logger.getLogger(Metrics.class.getName());
-    public static final int HEALTH_CHECK_INTERVAL_MINS = Integer.getInteger(Metrics.class.getName()+".HEALTH_CHECK_INTERVAL_MINS", 1);
+    public static final int HEALTH_CHECK_INTERVAL_MINS =
+            Integer.getInteger(Metrics.class.getName() + ".HEALTH_CHECK_INTERVAL_MINS", 1);
 
     private transient MetricRegistry metricRegistry;
     private transient HealthCheckRegistry healthCheckRegistry;
@@ -59,11 +84,11 @@ public class Metrics extends Plugin {
 
     @Override
     public void postInitialize() throws Exception {
-        for (MetricProvider p: Jenkins.getInstance().getExtensionList(MetricProvider.class)) {
+        for (MetricProvider p : Jenkins.getInstance().getExtensionList(MetricProvider.class)) {
             metricRegistry.registerAll(p.getMetricSet());
         }
-        for (HealthCheckProvider p: Jenkins.getInstance().getExtensionList(HealthCheckProvider.class)) {
-            for (Map.Entry<String, HealthCheck> c: p.getHealthChecks().entrySet()) {
+        for (HealthCheckProvider p : Jenkins.getInstance().getExtensionList(HealthCheckProvider.class)) {
+            for (Map.Entry<String, HealthCheck> c : p.getHealthChecks().entrySet()) {
                 healthCheckRegistry.register(c.getKey(), c.getValue());
             }
         }
@@ -109,13 +134,15 @@ public class Metrics extends Plugin {
             HealthCheckRegistry registry = healthCheckRegistry();
             if (registry != null) {
                 listener.getLogger().println("Starting health checks at " + new Date());
-                SortedMap<String,HealthCheck.Result> results = registry.runHealthChecks();
+                SortedMap<String, HealthCheck.Result> results = registry.runHealthChecks();
                 listener.getLogger().println("Health check results:");
                 Set<String> unhealthy = null;
-                for (Map.Entry<String,HealthCheck.Result> e: results.entrySet()) {
+                for (Map.Entry<String, HealthCheck.Result> e : results.entrySet()) {
                     listener.getLogger().println(" * " + e.getKey() + ": " + e.getValue());
                     if (!e.getValue().isHealthy()) {
-                        if (unhealthy == null) unhealthy = new TreeSet<String>();
+                        if (unhealthy == null) {
+                            unhealthy = new TreeSet<String>();
+                        }
                         unhealthy.add(e.getKey());
                     }
                 }

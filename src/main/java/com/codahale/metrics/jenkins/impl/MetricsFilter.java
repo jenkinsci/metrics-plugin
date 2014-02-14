@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright (c) 2013, CloudBees, Inc.
+ * Copyright (c) 2013-4, CloudBees, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -29,7 +29,6 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.jenkins.Metrics;
-import com.codahale.metrics.servlet.InstrumentedFilter;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
@@ -37,8 +36,6 @@ import javax.servlet.FilterConfig;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
-import javax.servlet.http.HttpServlet;
-import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletResponseWrapper;
 import java.io.IOException;
@@ -99,11 +96,11 @@ public class MetricsFilter implements Filter {
                     metricsRegistry.meter(name(MetricsFilter.class, entry.getValue())));
         }
         this.otherMeter = metricsRegistry.meter(name(MetricsFilter.class,
-                                                     otherMetricName));
+                otherMetricName));
         this.activeRequests = metricsRegistry.counter(name(MetricsFilter.class,
-                                                           "activeRequests"));
+                "activeRequests"));
         this.requestTimer = metricsRegistry.timer(name(MetricsFilter.class,
-                                                       "requests"));
+                "requests"));
 
     }
 
