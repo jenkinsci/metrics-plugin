@@ -27,6 +27,7 @@ package com.codahale.metrics.jenkins.impl;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.jenkins.MetricProvider;
@@ -160,12 +161,15 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 forRetention.add(computer);
                 getOrCreateTimer(computer);
             }
-            for (Map.Entry<Computer, Timer> entry : computerBuildDurations.entrySet()) {
-                if (forRetention.contains(entry.getKey())) {
-                    continue;
+            MetricRegistry metricRegistry = Metrics.metricRegistry();
+            if (metricRegistry != null) {
+                for (Map.Entry<Computer, Timer> entry : computerBuildDurations.entrySet()) {
+                    if (forRetention.contains(entry.getKey())) {
+                        continue;
+                    }
+                    // purge dead nodes
+                    metricRegistry.remove(name(Node.class, "builds", entry.getKey().getName()));
                 }
-                // purge dead nodes
-                Metrics.metricRegistry().remove(name(Node.class, "builds", entry.getKey().getName()));
             }
             computerBuildDurations.keySet().retainAll(forRetention);
             if (jenkinsNodeTotalCount != null) {
@@ -187,7 +191,8 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     private synchronized Timer getOrCreateTimer(Computer computer) {
         Timer timer = computerBuildDurations.get(computer);
         if (timer == null) {
-            timer = Metrics.metricRegistry().timer(name(Node.class, "builds", computer.getName()));
+            MetricRegistry registry = Metrics.metricRegistry();
+            timer = registry == null ? new Timer() : registry.timer(name(Node.class, "builds", computer.getName()));
             computerBuildDurations.put(computer, timer);
         }
         return timer;
@@ -195,8 +200,6 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     @Extension
     public static class PeriodicWorkImpl extends PeriodicWork {
-
-        private Thread thread;
 
         @Override
         public long getRecurrencePeriod() {

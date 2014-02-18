@@ -99,7 +99,11 @@ public class MetricsRootAction implements UnprotectedRootAction {
     @RequirePOST
     public HttpResponse doHealthcheck(@QueryParameter("key") String key) {
         Metrics.checkAccessKey(key);
-        return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
+        try {
+            return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
+        } catch (NullPointerException e) {
+            return HttpResponses.error(HttpServletResponse.SC_SERVICE_UNAVAILABLE, e);
+        }
     }
 
     @RequirePOST
@@ -120,10 +124,58 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return new ThreadDumpResponse(new ThreadDump(ManagementFactory.getThreadMXBean()));
     }
 
+    private static class PingResponse implements HttpResponse {
+        private static final String CONTENT_TYPE = "text/plain";
+        private static final String CONTENT = "pong";
+        private static final String CACHE_CONTROL = "Cache-Control";
+        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
+
+        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+                ServletException {
+            resp.setStatus(HttpServletResponse.SC_OK);
+            resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            resp.setContentType(CONTENT_TYPE);
+            final PrintWriter writer = resp.getWriter();
+            try {
+                writer.println(CONTENT);
+            } finally {
+                writer.close();
+            }
+        }
+    }
+
+    private static class ThreadDumpResponse implements HttpResponse {
+        private static final String CONTENT_TYPE = "text/plain";
+        private static final String CACHE_CONTROL = "Cache-Control";
+        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
+        private final ThreadDump threadDump;
+
+        public ThreadDumpResponse(ThreadDump threadDump) {
+            this.threadDump = threadDump;
+        }
+
+        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+                ServletException {
+            resp.setStatus(HttpServletResponse.SC_OK);
+            resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            resp.setContentType(CONTENT_TYPE);
+            final OutputStream output = resp.getOutputStream();
+            try {
+                threadDump.dump(output);
+            } finally {
+                output.close();
+            }
+        }
+    }
+
     public class Admin {
 
         public HttpResponse doHealthcheck() {
-            return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
+            try {
+                return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
+            } catch (NullPointerException e) {
+                return HttpResponses.error(HttpServletResponse.SC_SERVICE_UNAVAILABLE, e);
+            }
         }
 
         public HttpResponse doMetrics() {
@@ -212,50 +264,6 @@ public class MetricsRootAction implements UnprotectedRootAction {
             final OutputStream output = resp.getOutputStream();
             try {
                 getWriter(metricsMapper, req).writeValue(output, registry);
-            } finally {
-                output.close();
-            }
-        }
-    }
-
-    private class PingResponse implements HttpResponse {
-        private static final String CONTENT_TYPE = "text/plain";
-        private static final String CONTENT = "pong";
-        private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
-
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
-                ServletException {
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.setHeader(CACHE_CONTROL, NO_CACHE);
-            resp.setContentType(CONTENT_TYPE);
-            final PrintWriter writer = resp.getWriter();
-            try {
-                writer.println(CONTENT);
-            } finally {
-                writer.close();
-            }
-        }
-    }
-
-    private class ThreadDumpResponse implements HttpResponse {
-        private static final String CONTENT_TYPE = "text/plain";
-        private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
-        private final ThreadDump threadDump;
-
-        public ThreadDumpResponse(ThreadDump threadDump) {
-            this.threadDump = threadDump;
-        }
-
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
-                ServletException {
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.setHeader(CACHE_CONTROL, NO_CACHE);
-            resp.setContentType(CONTENT_TYPE);
-            final OutputStream output = resp.getOutputStream();
-            try {
-                threadDump.dump(output);
             } finally {
                 output.close();
             }
