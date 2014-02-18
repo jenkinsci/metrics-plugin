@@ -115,6 +115,16 @@ public class Metrics extends Plugin {
         descriptor.checkAccessKey(accessKey);
     }
 
+    public static void reindexAccessKeys() {
+        Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+                ? null
+                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        descriptor.reindexAccessKeys();
+    }
 
     @Extension
     public static class PeriodicWorkImpl extends AsyncPeriodicWork {
@@ -131,6 +141,7 @@ public class Metrics extends Plugin {
 
         @Override
         protected void execute(TaskListener listener) throws IOException, InterruptedException {
+            reindexAccessKeys();
             HealthCheckRegistry registry = healthCheckRegistry();
             if (registry != null) {
                 listener.getLogger().println("Starting health checks at " + new Date());

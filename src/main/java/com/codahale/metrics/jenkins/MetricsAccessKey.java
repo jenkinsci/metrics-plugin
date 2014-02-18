@@ -27,9 +27,11 @@ package com.codahale.metrics.jenkins;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+import hudson.ExtensionPoint;
 import hudson.Util;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
+import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
 import org.acegisecurity.AccessDeniedException;
 import org.kohsuke.stapler.DataBoundConstructor;
@@ -104,6 +106,11 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             Set<String> accessKeySet = this.accessKeySet;
             if (accessKeySet == null) {
                 accessKeySet = new HashSet<String>();
+                for (Provider p: Jenkins.getInstance().getExtensionList(Provider.class)) {
+                    for (MetricsAccessKey k : p.getAccessKeys()) {
+                        accessKeySet.add(k.getKey());
+                    }
+                }
                 synchronized (this) {
                     for (MetricsAccessKey k : accessKeys) {
                         accessKeySet.add(k.getKey());
@@ -129,5 +136,27 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             }
             return b.toString();
         }
+
+        public void reindexAccessKeys() {
+            Set<String> accessKeySet = new HashSet<String>();
+            for (Provider p: Jenkins.getInstance().getExtensionList(Provider.class)) {
+                for (MetricsAccessKey k : p.getAccessKeys()) {
+                    accessKeySet.add(k.getKey());
+                }
+            }
+            synchronized (this) {
+                for (MetricsAccessKey k : accessKeys) {
+                    accessKeySet.add(k.getKey());
+                }
+                this.accessKeySet = accessKeySet;
+            }
+        }
+    }
+
+    /**
+     * An extension point that allows for plugins to provide their own set of access keys.
+     */
+    public abstract class Provider implements ExtensionPoint {
+        public abstract List<MetricsAccessKey> getAccessKeys();
     }
 }
