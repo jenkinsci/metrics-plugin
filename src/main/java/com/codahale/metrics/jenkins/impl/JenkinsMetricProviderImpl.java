@@ -168,7 +168,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         continue;
                     }
                     // purge dead nodes
-                    metricRegistry.remove(name(Node.class, "builds", entry.getKey().getName()));
+                    metricRegistry.remove(name("jenkins", "node", entry.getKey().getName(), "builds"));
                 }
             }
             computerBuildDurations.keySet().retainAll(forRetention);
@@ -192,7 +192,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         Timer timer = computerBuildDurations.get(computer);
         if (timer == null) {
             MetricRegistry registry = Metrics.metricRegistry();
-            timer = registry == null ? new Timer() : registry.timer(name(Node.class, "builds", computer.getName()));
+            timer = registry == null ? new Timer() : registry.timer(name("jenkins", "node", computer.getName(), "builds"));
             computerBuildDurations.put(computer, timer);
         }
         return timer;
