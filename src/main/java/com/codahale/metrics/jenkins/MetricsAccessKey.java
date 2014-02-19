@@ -145,8 +145,10 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
                 }
             }
             synchronized (this) {
-                for (MetricsAccessKey k : accessKeys) {
-                    accessKeySet.add(k.getKey());
+                if (accessKeys != null) {
+                    for (MetricsAccessKey k : accessKeys) {
+                        accessKeySet.add(k.getKey());
+                    }
                 }
                 this.accessKeySet = accessKeySet;
             }
