@@ -33,6 +33,9 @@ import hudson.Extension;
 import hudson.Plugin;
 import hudson.model.AsyncPeriodicWork;
 import hudson.model.TaskListener;
+import hudson.security.Permission;
+import hudson.security.PermissionGroup;
+import hudson.security.PermissionScope;
 import hudson.util.PluginServletFilter;
 import hudson.util.TimeUnit2;
 import jenkins.model.Jenkins;
@@ -51,14 +54,16 @@ import java.util.logging.Logger;
  */
 public class Metrics extends Plugin {
 
-    private static final Logger LOGGER = Logger.getLogger(Metrics.class.getName());
     public static final int HEALTH_CHECK_INTERVAL_MINS =
             Integer.getInteger(Metrics.class.getName() + ".HEALTH_CHECK_INTERVAL_MINS", 1);
-
+    private static final Logger LOGGER = Logger.getLogger(Metrics.class.getName());
+    public static final PermissionGroup PERMISSIONS =
+            new PermissionGroup(Metrics.class, Messages._Metrics_PermissionGroup());
+    public static final Permission VIEW = new Permission(PERMISSIONS,
+            "View", Messages._Metrics_ViewPermission_Description(), Jenkins.ADMINISTER, PermissionScope.JENKINS);
     private transient MetricRegistry metricRegistry;
     private transient HealthCheckRegistry healthCheckRegistry;
     private transient MetricsFilter filter;
-
 
     @CheckForNull
     public static HealthCheckRegistry healthCheckRegistry() {
@@ -72,6 +77,28 @@ public class Metrics extends Plugin {
         Jenkins jenkins = Jenkins.getInstance();
         Metrics plugin = jenkins == null ? null : jenkins.getPlugin(Metrics.class);
         return plugin == null ? null : plugin.metricRegistry;
+    }
+
+    public static void checkAccessKey(@CheckForNull String accessKey) {
+        Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+                ? null
+                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        descriptor.checkAccessKey(accessKey);
+    }
+
+    public static void reindexAccessKeys() {
+        Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+                ? null
+                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        descriptor.reindexAccessKeys();
     }
 
     @Override
@@ -102,28 +129,6 @@ public class Metrics extends Plugin {
         }
         metricRegistry = null;
         healthCheckRegistry = null;
-    }
-
-    public static void checkAccessKey(@CheckForNull String accessKey) {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        descriptor.checkAccessKey(accessKey);
-    }
-
-    public static void reindexAccessKeys() {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        descriptor.reindexAccessKeys();
     }
 
     @Extension
@@ -163,6 +168,5 @@ public class Metrics extends Plugin {
             }
         }
     }
-
 
 }

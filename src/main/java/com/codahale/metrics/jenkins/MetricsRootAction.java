@@ -34,6 +34,7 @@ import com.fasterxml.jackson.databind.ObjectWriter;
 import hudson.Extension;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
+import jenkins.model.Jenkins;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
@@ -93,6 +94,11 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
     public Object getDynamic(String key) {
         Metrics.checkAccessKey(key);
+        return admin;
+    }
+
+    public Object getCurrentUser() {
+        Jenkins.getInstance().checkPermission(Metrics.VIEW);
         return admin;
     }
 
