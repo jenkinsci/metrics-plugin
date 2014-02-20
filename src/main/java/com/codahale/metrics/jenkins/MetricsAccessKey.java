@@ -158,7 +158,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     /**
      * An extension point that allows for plugins to provide their own set of access keys.
      */
-    public abstract class Provider implements ExtensionPoint {
+    public static abstract class Provider implements ExtensionPoint {
         public abstract List<MetricsAccessKey> getAccessKeys();
     }
 }
