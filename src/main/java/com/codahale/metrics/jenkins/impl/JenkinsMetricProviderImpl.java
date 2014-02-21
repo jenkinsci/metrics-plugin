@@ -24,7 +24,9 @@
 
 package com.codahale.metrics.jenkins.impl;
 
+import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
@@ -38,6 +40,7 @@ import hudson.model.Computer;
 import hudson.model.Executor;
 import hudson.model.Node;
 import hudson.model.PeriodicWork;
+import hudson.model.Queue;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.model.listeners.RunListener;
@@ -59,7 +62,16 @@ import static com.codahale.metrics.MetricRegistry.name;
  */
 @Extension
 public class JenkinsMetricProviderImpl extends MetricProvider {
-    private Histogram jenkinsQueueLength;
+    private Gauge<Integer> jenkinsQueueLength;
+    private Gauge<Integer> jenkinsQueueBlocked;
+    private Gauge<Integer> jenkinsQueueBuildable;
+    private Gauge<Integer> jenkinsQueueStuck;
+    private Gauge<Integer> jenkinsQueuePending;
+    private Histogram jenkinsQueueLengthAverage;
+    private Histogram jenkinsQueueBlockedAverage;
+    private Histogram jenkinsQueueBuildableAverage;
+    private Histogram jenkinsQueueStuckAverage;
+    private Histogram jenkinsQueuePendingAverage;
     private Histogram jenkinsNodeTotalCount;
     private Histogram jenkinsNodeOnlineCount;
     private Histogram jenkinsExecutorTotalCount;
@@ -71,8 +83,62 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     public JenkinsMetricProviderImpl() {
         metrics = new LinkedHashMap<String, Metric>();
-        jenkinsQueueLength = new Histogram(new ExponentiallyDecayingReservoir());
-        metrics.put(name("jenkins", "queue", "size"), jenkinsQueueLength);
+        jenkinsQueueLength = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
+            @Override
+            protected Integer loadValue() {
+                return Jenkins.getInstance().getQueue().getItems().length;
+            }
+        };
+        metrics.put(name("jenkins", "queue", "size"), jenkinsQueueLength);        
+        jenkinsQueueBlocked = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
+            @Override
+            protected Integer loadValue() {
+                int blocked = 0;
+                for (Queue.Item i: Jenkins.getInstance().getQueue().getItems()) {
+                    if (i.isBlocked()) blocked++;
+                }
+                return blocked;
+            }
+        };
+        metrics.put(name("jenkins", "queue", "blocked"), jenkinsQueueBlocked);        
+        jenkinsQueueBuildable = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
+            @Override
+            protected Integer loadValue() {
+                int buildable = 0;
+                for (Queue.Item i: Jenkins.getInstance().getQueue().getItems()) {
+                    if (i.isBuildable()) buildable++;
+                }
+                return buildable;
+            }
+        };
+        metrics.put(name("jenkins", "queue", "buildable"), jenkinsQueueBuildable);                
+        jenkinsQueueStuck = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
+            @Override
+            protected Integer loadValue() {
+                int stuck = 0;
+                for (Queue.Item i: Jenkins.getInstance().getQueue().getItems()) {
+                    if (i.isStuck()) stuck++;
+                }
+                return stuck;
+            }
+        };
+        metrics.put(name("jenkins", "queue", "stuck"), jenkinsQueueStuck);                
+        jenkinsQueuePending = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
+            @Override
+            protected Integer loadValue() {
+                return Jenkins.getInstance().getQueue().getPendingItems().size();
+            }
+        };
+        metrics.put(name("jenkins", "queue", "pending"), jenkinsQueuePending);                
+        jenkinsQueueLengthAverage = new Histogram(new ExponentiallyDecayingReservoir());
+        jenkinsQueueBlockedAverage = new Histogram(new ExponentiallyDecayingReservoir());
+        jenkinsQueueBuildableAverage = new Histogram(new ExponentiallyDecayingReservoir());
+        jenkinsQueueStuckAverage = new Histogram(new ExponentiallyDecayingReservoir());
+        jenkinsQueuePendingAverage = new Histogram(new ExponentiallyDecayingReservoir());
+        metrics.put(name("jenkins", "queue", "blocked", "average"), jenkinsQueueBlockedAverage);
+        metrics.put(name("jenkins", "queue", "buildable", "average"), jenkinsQueueBuildableAverage);
+        metrics.put(name("jenkins", "queue", "stuck", "average"), jenkinsQueueStuckAverage);
+        metrics.put(name("jenkins", "queue", "pending", "average"), jenkinsQueuePendingAverage);
         jenkinsNodeTotalCount = new Histogram(new ExponentiallyDecayingReservoir());
         metrics.put(name("jenkins", "node", "count"), jenkinsNodeTotalCount);
         jenkinsNodeOnlineCount = new Histogram(new ExponentiallyDecayingReservoir());
@@ -118,8 +184,20 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     private synchronized void updateMetrics() {
         final Jenkins jenkins = Jenkins.getInstance();
-        if (jenkinsQueueLength != null) {
-            jenkinsQueueLength.update(jenkins.getQueue().getBuildableItems().size());
+        if (jenkinsQueueLengthAverage != null && jenkinsQueueLength != null) {
+            jenkinsQueueLengthAverage.update(jenkinsQueueLength.getValue());
+        }
+        if (jenkinsQueueBlockedAverage != null && jenkinsQueueBlocked  != null) {
+            jenkinsQueueBlockedAverage.update(jenkinsQueueBlocked.getValue());
+        }
+        if (jenkinsQueueBuildableAverage != null && jenkinsQueueBuildable != null) {
+            jenkinsQueueBuildableAverage.update(jenkinsQueueBuildable.getValue());
+        }
+        if (jenkinsQueueStuckAverage != null && jenkinsQueueStuck != null) {
+            jenkinsQueueStuckAverage.update(jenkinsQueueStuck.getValue());
+        }
+        if (jenkinsQueuePendingAverage != null && jenkinsQueuePending != null) {
+            jenkinsQueuePendingAverage.update(jenkinsQueuePending.getValue());
         }
         if (jenkinsNodeTotalCount != null || jenkinsNodeOnlineCount != null || jenkinsExecutorTotalCount != null
                 || jenkinsExecutorUsedCount != null) {
