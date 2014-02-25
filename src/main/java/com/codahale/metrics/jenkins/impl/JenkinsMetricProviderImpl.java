@@ -25,13 +25,14 @@
 package com.codahale.metrics.jenkins.impl;
 
 import com.codahale.metrics.CachedGauge;
-import com.codahale.metrics.ExponentiallyDecayingReservoir;
+import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
+import com.codahale.metrics.jenkins.AutoSamplingHistogram;
 import com.codahale.metrics.jenkins.MetricProvider;
 import com.codahale.metrics.jenkins.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -62,20 +63,11 @@ import static com.codahale.metrics.MetricRegistry.name;
  */
 @Extension
 public class JenkinsMetricProviderImpl extends MetricProvider {
-    private Gauge<Integer> jenkinsQueueLength;
-    private Gauge<Integer> jenkinsQueueBlocked;
-    private Gauge<Integer> jenkinsQueueBuildable;
-    private Gauge<Integer> jenkinsQueueStuck;
-    private Gauge<Integer> jenkinsQueuePending;
-    private Histogram jenkinsQueueLengthAverage;
-    private Histogram jenkinsQueueBlockedAverage;
-    private Histogram jenkinsQueueBuildableAverage;
-    private Histogram jenkinsQueueStuckAverage;
-    private Histogram jenkinsQueuePendingAverage;
-    private Histogram jenkinsNodeTotalCount;
-    private Histogram jenkinsNodeOnlineCount;
-    private Histogram jenkinsExecutorTotalCount;
-    private Histogram jenkinsExecutorUsedCount;
+
+    private AutoSamplingHistogram jenkinsNodeTotalCount;
+    private AutoSamplingHistogram jenkinsNodeOnlineCount;
+    private AutoSamplingHistogram jenkinsExecutorTotalCount;
+    private AutoSamplingHistogram jenkinsExecutorUsedCount;
     private Timer jenkinsBuildDuration;
     private Map<Computer, Timer> computerBuildDurations = new HashMap<Computer, Timer>();
     private Map<String, Metric> metrics;
@@ -83,77 +75,146 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     public JenkinsMetricProviderImpl() {
         metrics = new LinkedHashMap<String, Metric>();
-        jenkinsQueueLength = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
+        Gauge<QueueStats> jenkinsQueue = new CachedGauge<QueueStats>(1, TimeUnit.SECONDS) {
             @Override
-            protected Integer loadValue() {
-                return Jenkins.getInstance().getQueue().getItems().length;
-            }
-        };
-        metrics.put(name("jenkins", "queue", "size"), jenkinsQueueLength);        
-        jenkinsQueueBlocked = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
-            @Override
-            protected Integer loadValue() {
+            protected QueueStats loadValue() {
+                Queue queue = Jenkins.getInstance().getQueue();
+                int length = 0;
                 int blocked = 0;
-                for (Queue.Item i: Jenkins.getInstance().getQueue().getItems()) {
-                    if (i.isBlocked()) blocked++;
-                }
-                return blocked;
-            }
-        };
-        metrics.put(name("jenkins", "queue", "blocked"), jenkinsQueueBlocked);        
-        jenkinsQueueBuildable = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
-            @Override
-            protected Integer loadValue() {
                 int buildable = 0;
-                for (Queue.Item i: Jenkins.getInstance().getQueue().getItems()) {
-                    if (i.isBuildable()) buildable++;
-                }
-                return buildable;
-            }
-        };
-        metrics.put(name("jenkins", "queue", "buildable"), jenkinsQueueBuildable);                
-        jenkinsQueueStuck = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
-            @Override
-            protected Integer loadValue() {
+                int pending = queue.getPendingItems().size();
                 int stuck = 0;
-                for (Queue.Item i: Jenkins.getInstance().getQueue().getItems()) {
-                    if (i.isStuck()) stuck++;
+                for (Queue.Item i : queue.getItems()) {
+                    length++;
+                    if (i.isBlocked()) {
+                        blocked++;
+                    }
+                    if (i.isBuildable()) {
+                        buildable++;
+                    }
+                    if (i.isStuck()) {
+                        stuck++;
+                    }
                 }
-                return stuck;
+                return new QueueStats(length, blocked, buildable, pending, stuck);
             }
         };
-        metrics.put(name("jenkins", "queue", "stuck"), jenkinsQueueStuck);                
-        jenkinsQueuePending = new CachedGauge<Integer>(5, TimeUnit.SECONDS) {
-            @Override
-            protected Integer loadValue() {
-                return Jenkins.getInstance().getQueue().getPendingItems().size();
-            }
-        };
-        metrics.put(name("jenkins", "queue", "pending"), jenkinsQueuePending);                
-        jenkinsQueueLengthAverage = new Histogram(new ExponentiallyDecayingReservoir());
-        jenkinsQueueBlockedAverage = new Histogram(new ExponentiallyDecayingReservoir());
-        jenkinsQueueBuildableAverage = new Histogram(new ExponentiallyDecayingReservoir());
-        jenkinsQueueStuckAverage = new Histogram(new ExponentiallyDecayingReservoir());
-        jenkinsQueuePendingAverage = new Histogram(new ExponentiallyDecayingReservoir());
-        metrics.put(name("jenkins", "queue", "blocked", "average"), jenkinsQueueBlockedAverage);
-        metrics.put(name("jenkins", "queue", "buildable", "average"), jenkinsQueueBuildableAverage);
-        metrics.put(name("jenkins", "queue", "stuck", "average"), jenkinsQueueStuckAverage);
-        metrics.put(name("jenkins", "queue", "pending", "average"), jenkinsQueuePendingAverage);
-        jenkinsNodeTotalCount = new Histogram(new ExponentiallyDecayingReservoir());
-        metrics.put(name("jenkins", "node", "count"), jenkinsNodeTotalCount);
-        jenkinsNodeOnlineCount = new Histogram(new ExponentiallyDecayingReservoir());
-        metrics.put(name("jenkins", "node", "online"), jenkinsNodeOnlineCount);
-        jenkinsExecutorTotalCount = new Histogram(new ExponentiallyDecayingReservoir());
-        metrics.put(name("jenkins", "executor", "count"), jenkinsExecutorTotalCount);
-        jenkinsExecutorUsedCount = new Histogram(new ExponentiallyDecayingReservoir());
-        metrics.put(name("jenkins", "executor", "in-use"), jenkinsExecutorUsedCount);
-        jenkinsBuildDuration = new Timer();
-        metrics.put(name("jenkins", "build", "duration"), jenkinsBuildDuration);
-        set = new MetricSet() {
-            public Map<String, Metric> getMetrics() {
-                return metrics;
-            }
-        };
+        Gauge<NodeStats> jenkinsNodes = new
+
+                CachedGauge<NodeStats>(1, TimeUnit.SECONDS) {
+                    @Override
+                    protected NodeStats loadValue() {
+                        int nodeCount = 0;
+                        int nodeOnline = 0;
+                        int executorCount = 0;
+                        int executorBuilding = 0;
+                        Jenkins jenkins = Jenkins.getInstance();
+                        if (jenkins.getNumExecutors() > 0) {
+                            nodeCount++;
+                            Computer computer = jenkins.toComputer();
+                            if (computer != null) {
+                                if (!computer.isOffline()) {
+                                    nodeOnline++;
+                                    for (Executor e : computer.getExecutors()) {
+                                        executorCount++;
+                                        if (!e.isIdle()) {
+                                            executorBuilding++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        for (Node node : jenkins.getNodes()) {
+                            nodeCount++;
+                            Computer computer = node.toComputer();
+                            if (computer == null) {
+                                continue;
+                            }
+                            if (!computer.isOffline()) {
+                                nodeOnline++;
+                                for (Executor e : computer.getExecutors()) {
+                                    executorCount++;
+                                    if (!e.isIdle()) {
+                                        executorBuilding++;
+                                    }
+                                }
+                            }
+                        }
+                        return new NodeStats(nodeCount, nodeOnline, executorCount, executorBuilding);
+                    }
+                };
+
+        metrics.put(name("jenkins", "queue", "size"),
+                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                    @Override
+                    protected Integer transform(QueueStats value) {
+                        return value.getLength();
+                    }
+                }).toMetricSet());
+        metrics.put(name("jenkins", "queue", "blocked"),
+                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                    @Override
+                    protected Integer transform(QueueStats value) {
+                        return value.getBlocked();
+                    }
+                }).toMetricSet());
+        metrics.put(name("jenkins", "queue", "buildable"),
+                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                    @Override
+                    protected Integer transform(QueueStats value) {
+                        return value.getBuildable();
+                    }
+                }).toMetricSet());
+        metrics.put(name("jenkins", "queue", "stuck"),
+                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                    @Override
+                    protected Integer transform(QueueStats value) {
+                        return value.getStuck();
+                    }
+                }).toMetricSet());
+        metrics.put(name("jenkins", "queue", "pending"),
+                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                    @Override
+                    protected Integer transform(QueueStats value) {
+                        return value.getPending();
+                    }
+                }).toMetricSet());
+        metrics.put(name("jenkins", "node", "count"), (jenkinsNodeTotalCount =
+                new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                    @Override
+                    protected Integer transform(NodeStats value) {
+                        return value.getNodeCount();
+                    }
+                })).toMetricSet());
+        metrics.put(name("jenkins", "node", "online"), (jenkinsNodeOnlineCount =
+                new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                    @Override
+                    protected Integer transform(NodeStats value) {
+                        return value.getNodeOnline();
+                    }
+                })).toMetricSet());
+        metrics.put(name("jenkins", "executor", "count"), (jenkinsExecutorTotalCount =
+                new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                    @Override
+                    protected Integer transform(NodeStats value) {
+                        return value.getExecutorCount();
+                    }
+                })).toMetricSet());
+        metrics.put(name("jenkins", "executor", "in-use"), (jenkinsExecutorUsedCount =
+                new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                    @Override
+                    protected Integer transform(NodeStats value) {
+                        return value.getExecutorBuilding();
+                    }
+                })).toMetricSet());
+        metrics.put(name("jenkins", "build", "duration"), (jenkinsBuildDuration = new Timer()));
+        set = new
+
+                MetricSet() {
+                    public Map<String, Metric> getMetrics() {
+                        return metrics;
+                    }
+                };
     }
 
     public static JenkinsMetricProviderImpl instance() {
@@ -184,57 +245,12 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     private synchronized void updateMetrics() {
         final Jenkins jenkins = Jenkins.getInstance();
-        if (jenkinsQueueLengthAverage != null && jenkinsQueueLength != null) {
-            jenkinsQueueLengthAverage.update(jenkinsQueueLength.getValue());
-        }
-        if (jenkinsQueueBlockedAverage != null && jenkinsQueueBlocked  != null) {
-            jenkinsQueueBlockedAverage.update(jenkinsQueueBlocked.getValue());
-        }
-        if (jenkinsQueueBuildableAverage != null && jenkinsQueueBuildable != null) {
-            jenkinsQueueBuildableAverage.update(jenkinsQueueBuildable.getValue());
-        }
-        if (jenkinsQueueStuckAverage != null && jenkinsQueueStuck != null) {
-            jenkinsQueueStuckAverage.update(jenkinsQueueStuck.getValue());
-        }
-        if (jenkinsQueuePendingAverage != null && jenkinsQueuePending != null) {
-            jenkinsQueuePendingAverage.update(jenkinsQueuePending.getValue());
-        }
-        if (jenkinsNodeTotalCount != null || jenkinsNodeOnlineCount != null || jenkinsExecutorTotalCount != null
-                || jenkinsExecutorUsedCount != null) {
-            int nodeTotal = 0;
-            int nodeOnline = 0;
-            int executorTotal = 0;
-            int executorUsed = 0;
-            if (jenkins.getNumExecutors() > 0) {
-                nodeTotal++;
-                Computer computer = jenkins.toComputer();
-                if (computer != null) {
-                    if (!computer.isOffline()) {
-                        nodeOnline++;
-                        for (Executor e : computer.getExecutors()) {
-                            executorTotal++;
-                            if (!e.isIdle()) {
-                                executorUsed++;
-                            }
-                        }
-                    }
-                }
-            }
+        if (jenkins != null) {
             Set<Computer> forRetention = new HashSet<Computer>();
             for (Node node : jenkins.getNodes()) {
-                nodeTotal++;
                 Computer computer = node.toComputer();
                 if (computer == null) {
                     continue;
-                }
-                if (!computer.isOffline()) {
-                    nodeOnline++;
-                    for (Executor e : computer.getExecutors()) {
-                        executorTotal++;
-                        if (!e.isIdle()) {
-                            executorUsed++;
-                        }
-                    }
                 }
                 forRetention.add(computer);
                 getOrCreateTimer(computer);
@@ -250,18 +266,6 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 }
             }
             computerBuildDurations.keySet().retainAll(forRetention);
-            if (jenkinsNodeTotalCount != null) {
-                jenkinsNodeTotalCount.update(nodeTotal);
-            }
-            if (jenkinsNodeOnlineCount != null) {
-                jenkinsNodeOnlineCount.update(nodeOnline);
-            }
-            if (jenkinsExecutorTotalCount != null) {
-                jenkinsExecutorTotalCount.update(executorTotal);
-            }
-            if (jenkinsExecutorUsedCount != null) {
-                jenkinsExecutorUsedCount.update(executorUsed);
-            }
         }
 
     }
@@ -270,10 +274,86 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         Timer timer = computerBuildDurations.get(computer);
         if (timer == null) {
             MetricRegistry registry = Metrics.metricRegistry();
-            timer = registry == null ? new Timer() : registry.timer(name("jenkins", "node", computer.getName(), "builds"));
+            timer = registry == null
+                    ? new Timer()
+                    : registry.timer(name("jenkins", "node", computer.getName(), "builds"));
             computerBuildDurations.put(computer, timer);
         }
         return timer;
+    }
+
+    private static class QueueStats {
+        private final int length;
+        private final int blocked;
+        private final int buildable;
+        private final int stuck;
+        private final int pending;
+
+        public QueueStats(int length, int blocked, int buildable, int pending, int stuck) {
+            this.length = length;
+            this.blocked = blocked;
+            this.buildable = buildable;
+            this.pending = pending;
+            this.stuck = stuck;
+        }
+
+        public int getBlocked() {
+            return blocked;
+        }
+
+        public int getBuildable() {
+            return buildable;
+        }
+
+        public int getLength() {
+            return length;
+        }
+
+        public int getPending() {
+            return pending;
+        }
+
+        public int getStuck() {
+            return stuck;
+        }
+    }
+
+    private static class NodeStats {
+        private final int nodeCount;
+        private final int nodeOnline;
+        private final int executorCount;
+        private final int executorBuilding;
+
+        public NodeStats(int nodeCount, int nodeOnline, int executorCount, int executorBuilding) {
+            this.nodeCount = nodeCount;
+            this.nodeOnline = nodeOnline;
+            this.executorCount = executorCount;
+            this.executorBuilding = executorBuilding;
+        }
+
+        public int getExecutorAvailable() {
+            return executorCount - executorBuilding;
+        }
+
+        public int getExecutorBuilding() {
+            return executorBuilding;
+        }
+
+        public int getExecutorCount() {
+            return executorCount;
+        }
+
+        public int getNodeCount() {
+            return nodeCount;
+        }
+
+        public int getNodeOffline() {
+            return nodeCount - nodeOnline;
+        }
+
+        public int getNodeOnline() {
+            return nodeOnline;
+        }
     }
 
     @Extension
