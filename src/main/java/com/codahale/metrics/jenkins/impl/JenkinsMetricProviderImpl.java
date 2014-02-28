@@ -28,7 +28,7 @@ import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
-import com.codahale.metrics.Metric;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
@@ -37,6 +37,7 @@ import com.codahale.metrics.jenkins.MetricProvider;
 import com.codahale.metrics.jenkins.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+import hudson.model.Action;
 import hudson.model.Computer;
 import hudson.model.Executor;
 import hudson.model.Node;
@@ -45,15 +46,19 @@ import hudson.model.Queue;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.model.listeners.RunListener;
+import hudson.model.queue.QueueListener;
+import hudson.model.queue.WorkUnit;
+import hudson.model.queue.WorkUnitContext;
 import jenkins.model.Jenkins;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static com.codahale.metrics.MetricRegistry.name;
@@ -69,12 +74,12 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     private AutoSamplingHistogram jenkinsExecutorTotalCount;
     private AutoSamplingHistogram jenkinsExecutorUsedCount;
     private Timer jenkinsBuildDuration;
+    private Meter jenkinsJobScheduleRate;
     private Map<Computer, Timer> computerBuildDurations = new HashMap<Computer, Timer>();
-    private Map<String, Metric> metrics;
     private MetricSet set;
+    private Timer jenkinsJobScheduleTime;
 
     public JenkinsMetricProviderImpl() {
-        metrics = new LinkedHashMap<String, Metric>();
         Gauge<QueueStats> jenkinsQueue = new CachedGauge<QueueStats>(1, TimeUnit.SECONDS) {
             @Override
             protected QueueStats loadValue() {
@@ -144,77 +149,73 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     }
                 };
 
-        metrics.put(name("jenkins", "queue", "size"),
+        set = metrics(metric(name("jenkins", "queue", "size"),
                 new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
                     @Override
                     protected Integer transform(QueueStats value) {
                         return value.getLength();
                     }
-                }).toMetricSet());
-        metrics.put(name("jenkins", "queue", "blocked"),
-                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
-                    @Override
-                    protected Integer transform(QueueStats value) {
-                        return value.getBlocked();
-                    }
-                }).toMetricSet());
-        metrics.put(name("jenkins", "queue", "buildable"),
-                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
-                    @Override
-                    protected Integer transform(QueueStats value) {
-                        return value.getBuildable();
-                    }
-                }).toMetricSet());
-        metrics.put(name("jenkins", "queue", "stuck"),
-                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
-                    @Override
-                    protected Integer transform(QueueStats value) {
-                        return value.getStuck();
-                    }
-                }).toMetricSet());
-        metrics.put(name("jenkins", "queue", "pending"),
-                new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
-                    @Override
-                    protected Integer transform(QueueStats value) {
-                        return value.getPending();
-                    }
-                }).toMetricSet());
-        metrics.put(name("jenkins", "node", "count"), (jenkinsNodeTotalCount =
-                new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
-                    @Override
-                    protected Integer transform(NodeStats value) {
-                        return value.getNodeCount();
-                    }
-                })).toMetricSet());
-        metrics.put(name("jenkins", "node", "online"), (jenkinsNodeOnlineCount =
-                new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
-                    @Override
-                    protected Integer transform(NodeStats value) {
-                        return value.getNodeOnline();
-                    }
-                })).toMetricSet());
-        metrics.put(name("jenkins", "executor", "count"), (jenkinsExecutorTotalCount =
-                new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
-                    @Override
-                    protected Integer transform(NodeStats value) {
-                        return value.getExecutorCount();
-                    }
-                })).toMetricSet());
-        metrics.put(name("jenkins", "executor", "in-use"), (jenkinsExecutorUsedCount =
-                new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
-                    @Override
-                    protected Integer transform(NodeStats value) {
-                        return value.getExecutorBuilding();
-                    }
-                })).toMetricSet());
-        metrics.put(name("jenkins", "build", "duration"), (jenkinsBuildDuration = new Timer()));
-        set = new
-
-                MetricSet() {
-                    public Map<String, Metric> getMetrics() {
-                        return metrics;
-                    }
-                };
+                }).toMetricSet()),
+                metric(name("jenkins", "queue", "blocked"),
+                        new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                            @Override
+                            protected Integer transform(QueueStats value) {
+                                return value.getBlocked();
+                            }
+                        }).toMetricSet()),
+                metric(name("jenkins", "queue", "buildable"),
+                        new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                            @Override
+                            protected Integer transform(QueueStats value) {
+                                return value.getBuildable();
+                            }
+                        }).toMetricSet()),
+                metric(name("jenkins", "queue", "stuck"),
+                        new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                            @Override
+                            protected Integer transform(QueueStats value) {
+                                return value.getStuck();
+                            }
+                        }).toMetricSet()),
+                metric(name("jenkins", "queue", "pending"),
+                        new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
+                            @Override
+                            protected Integer transform(QueueStats value) {
+                                return value.getPending();
+                            }
+                        }).toMetricSet()),
+                metric(name("jenkins", "job", "scheduled"), (jenkinsJobScheduleRate = new Meter())),
+                metric(name("jenkins", "job", "queue", "duration"), (jenkinsJobScheduleTime = new Timer())),
+                metric(name("jenkins", "node", "count"), (jenkinsNodeTotalCount =
+                        new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                            @Override
+                            protected Integer transform(NodeStats value) {
+                                return value.getNodeCount();
+                            }
+                        })).toMetricSet()),
+                metric(name("jenkins", "node", "online"), (jenkinsNodeOnlineCount =
+                        new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                            @Override
+                            protected Integer transform(NodeStats value) {
+                                return value.getNodeOnline();
+                            }
+                        })).toMetricSet()),
+                metric(name("jenkins", "executor", "count"), (jenkinsExecutorTotalCount =
+                        new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                            @Override
+                            protected Integer transform(NodeStats value) {
+                                return value.getExecutorCount();
+                            }
+                        })).toMetricSet()),
+                metric(name("jenkins", "executor", "in-use"), (jenkinsExecutorUsedCount =
+                        new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                            @Override
+                            protected Integer transform(NodeStats value) {
+                                return value.getExecutorBuilding();
+                            }
+                        })).toMetricSet()),
+                metric(name("jenkins", "job", "build", "duration"), (jenkinsBuildDuration = new Timer()))
+        );
     }
 
     public static JenkinsMetricProviderImpl instance() {
@@ -393,6 +394,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 }
                 contexts.put(run, contextList);
             }
+            ScheduledRate.instance().addAction(run);
         }
 
         @Override
@@ -406,5 +408,116 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         }
     }
 
+    @Extension(ordinal = Double.MAX_VALUE)
+    public static class SchedulingRate extends Queue.QueueDecisionHandler {
+
+        @Override
+        public boolean shouldSchedule(Queue.Task p, List<Action> actions) {
+            JenkinsMetricProviderImpl instance = instance();
+            if (instance != null && instance.jenkinsJobScheduleRate != null) {
+                instance.jenkinsJobScheduleRate.mark();
+            }
+            return true;
+        }
+    }
+
+    @Extension
+    public static class ScheduledRate extends QueueListener {
+
+        private final Map<WorkUnitContext, JobScheduledDuration> actions = new WeakHashMap();
+
+        public static ScheduledRate instance() {
+            return Jenkins.getInstance().getExtensionList(QueueListener.class).get(ScheduledRate.class);
+        }
+
+        public void addAction(Run run) {
+            Executor executor = run.getExecutor();
+            if (executor == null) {
+                return;
+            }
+            WorkUnit workUnit = executor.getCurrentWorkUnit();
+            if (workUnit == null) {
+                return;
+            }
+            WorkUnitContext context = workUnit.context;
+            if (context == null) {
+                return;
+            }
+            ;
+            JobScheduledDuration action;
+            synchronized (actions) {
+                action = actions.remove(context);
+            }
+            if (action != null) {
+                run.addAction(action);
+            }
+        }
+
+        public void onLeft(Queue.LeftItem li) {
+            long millisecondsInQueue = System.currentTimeMillis() - li.getInQueueSince();
+            JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
+            if (instance != null && instance.jenkinsJobScheduleTime != null) {
+                instance.jenkinsJobScheduleTime.update(millisecondsInQueue, TimeUnit.MILLISECONDS);
+            }
+            if (li.outcome != null) {
+                synchronized (actions) {
+                    actions.put(li.outcome, new JobScheduledDuration(millisecondsInQueue));
+                }
+            }
+        }
+
+    }
+
+    public static class JobScheduledDuration implements Serializable, Action {
+
+        private static final long serialVersionUID = 1L;
+        private final long scheduledTimeMillis;
+
+        public JobScheduledDuration(long scheduledTimeMillis) {
+            this.scheduledTimeMillis = scheduledTimeMillis;
+        }
+
+        public long getScheduledTimeMillis() {
+            return scheduledTimeMillis;
+        }
+
+        public String getIconFileName() {
+            return null;
+        }
+
+        public String getDisplayName() {
+            return null;
+        }
+
+        public String getUrlName() {
+            return null;
+        }
+    }
+
+    public static class ScheduledTime implements Serializable, Action {
+
+        private static final long serialVersionUID = 1L;
+        private final long scheduledTimeMillis;
+
+        public ScheduledTime(long scheduledTimeMillis) {
+            this.scheduledTimeMillis = scheduledTimeMillis;
+        }
+
+        public long getScheduledTimeMillis() {
+            return scheduledTimeMillis;
+        }
+
+        public String getIconFileName() {
+            return null;
+        }
+
+        public String getDisplayName() {
+            return null;
+        }
+
+        public String getUrlName() {
+            return null;
+        }
+    }
 
 }

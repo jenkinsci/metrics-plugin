@@ -24,9 +24,14 @@
 
 package com.codahale.metrics.jenkins;
 
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricSet;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.ExtensionPoint;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * Provides metrics to register.
@@ -38,4 +43,50 @@ public abstract class MetricProvider implements ExtensionPoint {
      */
     @NonNull
     public abstract MetricSet getMetricSet();
+
+    protected static Map.Entry<String,Metric> metric(String name, Metric metric) {
+        return new StringMetricEntry(name, metric);
+    }
+
+    protected static MetricSet metrics(Map.Entry<String,Metric>... metrics) {
+        final Map<String,Metric> result = new LinkedHashMap<String, Metric>(metrics.length);
+        for (Map.Entry<String,Metric> metric: metrics) {
+            result.put(metric.getKey(), metric.getValue());
+        }
+        return new FixedMetricSet(result);
+    }
+
+    private static class StringMetricEntry implements Map.Entry<String, Metric> {
+        private final String name;
+        private final Metric metric;
+
+        public StringMetricEntry(String name, Metric metric) {
+            this.name = name;
+            this.metric = metric;
+        }
+
+        public String getKey() {
+            return name;
+        }
+
+        public Metric getValue() {
+            return metric;
+        }
+
+        public Metric setValue(Metric value) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static class FixedMetricSet implements MetricSet {
+        private final Map<String, Metric> result;
+
+        public FixedMetricSet(Map<String, Metric> result) {
+            this.result = Collections.unmodifiableMap(result);
+        }
+
+        public Map<String, Metric> getMetrics() {
+            return result;
+        }
+    }
 }
