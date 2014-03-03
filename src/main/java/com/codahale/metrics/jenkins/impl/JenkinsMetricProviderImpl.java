@@ -51,7 +51,6 @@ import hudson.model.queue.WorkUnit;
 import hudson.model.queue.WorkUnitContext;
 import jenkins.model.Jenkins;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -69,15 +68,58 @@ import static com.codahale.metrics.MetricRegistry.name;
 @Extension
 public class JenkinsMetricProviderImpl extends MetricProvider {
 
-    private AutoSamplingHistogram jenkinsNodeTotalCount;
-    private AutoSamplingHistogram jenkinsNodeOnlineCount;
-    private AutoSamplingHistogram jenkinsExecutorTotalCount;
-    private AutoSamplingHistogram jenkinsExecutorUsedCount;
-    private Timer jenkinsBuildDuration;
-    private Meter jenkinsJobScheduleRate;
-    private Map<Computer, Timer> computerBuildDurations = new HashMap<Computer, Timer>();
+    /**
+     * Our set of metrics.
+     */
     private MetricSet set;
-    private Timer jenkinsJobScheduleTime;
+    /**
+     * The number of nodes defined in this Jenkins instance.
+     */
+    private AutoSamplingHistogram jenkinsNodeTotalCount;
+    /**
+     * The number of defined nodes that are on-line.
+     */
+    private AutoSamplingHistogram jenkinsNodeOnlineCount;
+    /**
+     * The number of executors that are on-line.
+     */
+    private AutoSamplingHistogram jenkinsExecutorTotalCount;
+    /**
+     * The number of executors that are in-use.
+     */
+    private AutoSamplingHistogram jenkinsExecutorUsedCount;
+    /**
+     * The build durations per computer.
+     */
+    private Map<Computer, Timer> computerBuildDurations = new HashMap<Computer, Timer>();
+    /**
+     * The rate at which jobs are being scheduled.
+     */
+    private Meter jenkinsJobScheduleRate;
+    /**
+     * The amount of time jobs stay in the queue.
+     */
+    private Timer jenkinsJobQueueTime;
+    /**
+     * The amount of time a job is waiting for its quiet period to expire.
+     */
+    private Timer jenkinsJobWaitingTime;
+    /**
+     * The amount of time jobs are blocked waiting for a resource that has a restricted sharing policy.
+     */
+    private Timer jenkinsJobBlockedTime;
+    /**
+     * The amount of time jobs are buildable and waiting for an executor.
+     */
+    private Timer jenkinsJobBuildableTime;
+    /**
+     * The amount of time jobs are building.
+     */
+    private Timer jenkinsJobBuildingTime;
+    /**
+     * The amount of time jobs take from initial scheduling to completion.
+     */
+    private Timer jenkinsJobTotalTime;
 
     public JenkinsMetricProviderImpl() {
         Gauge<QueueStats> jenkinsQueue = new CachedGauge<QueueStats>(1, TimeUnit.SECONDS) {
@@ -184,8 +226,6 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                 return value.getPending();
                             }
                         }).toMetricSet()),
-                metric(name("jenkins", "job", "scheduled"), (jenkinsJobScheduleRate = new Meter())),
-                metric(name("jenkins", "job", "queue", "duration"), (jenkinsJobScheduleTime = new Timer())),
                 metric(name("jenkins", "node", "count"), (jenkinsNodeTotalCount =
                         new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
                             @Override
@@ -214,7 +254,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                 return value.getExecutorBuilding();
                             }
                         })).toMetricSet()),
-                metric(name("jenkins", "job", "build", "duration"), (jenkinsBuildDuration = new Timer()))
+                metric(name("jenkins", "job", "scheduled"), (jenkinsJobScheduleRate = new Meter())),
+                metric(name("jenkins", "job", "queuing", "duration"), (jenkinsJobQueueTime = new Timer())),
+                metric(name("jenkins", "job", "waiting", "duration"), (jenkinsJobWaitingTime = new Timer())),
+                metric(name("jenkins", "job", "blocked", "duration"), (jenkinsJobBlockedTime = new Timer())),
+                metric(name("jenkins", "job", "buildable", "duration"), (jenkinsJobBuildableTime = new Timer())),
+                metric(name("jenkins", "job", "building", "duration"), (jenkinsJobBuildingTime = new Timer())),
+                metric(name("jenkins", "job", "total", "duration"), (jenkinsJobTotalTime = new Timer()))
         );
     }
 
@@ -362,7 +408,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
         @Override
         public long getRecurrencePeriod() {
-            return TimeUnit.SECONDS.toMillis(15);
+            return TimeUnit.SECONDS.toMillis(5); // the meters expect to be ticked every 5 seconds to give a valid m1, m5 and m15
         }
 
         @Override
@@ -385,7 +431,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             JenkinsMetricProviderImpl instance = instance();
             if (instance != null) {
                 List<Timer.Context> contextList = new ArrayList<Timer.Context>();
-                contextList.add(instance.jenkinsBuildDuration.time());
+                contextList.add(instance.jenkinsJobBuildingTime.time());
                 Executor executor = run.getExecutor();
                 if (executor != null) {
                     Computer computer = executor.getOwner();
@@ -399,12 +445,21 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
         @Override
         public synchronized void onCompleted(Run run, TaskListener listener) {
+            JenkinsMetricProviderImpl instance = instance();
+            if (instance != null && instance.jenkinsJobBuildingTime != null) {
+                instance.jenkinsJobBuildingTime.update(run.getDuration(), TimeUnit.MILLISECONDS);
+            }
             List<Timer.Context> contextList = contexts.remove(run);
             if (contextList != null) {
                 for (Timer.Context context : contextList) {
                     context.stop();
                 }
             }
+            TimeInQueueAction action = run.getAction(TimeInQueueAction.class);
+            if (action != null && instance != null && instance.jenkinsJobTotalTime != null) {
+                instance.jenkinsJobTotalTime.update(run.getDuration() + action.getQueuingDurationMillis(), TimeUnit.MILLISECONDS);
+            }
+
         }
     }
 
@@ -424,7 +479,12 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     @Extension
     public static class ScheduledRate extends QueueListener {
 
-        private final Map<WorkUnitContext, JobScheduledDuration> actions = new WeakHashMap();
+        private final Map<WorkUnitContext, TimeInQueueAction> actions = new WeakHashMap<WorkUnitContext,
+                TimeInQueueAction>();
+
+        private final Map<Queue.BlockedItem, Timer.Context> blocked = new WeakHashMap<Queue.BlockedItem, Timer.Context>();
+        private final Map<Queue.BuildableItem, Timer.Context> buildable = new WeakHashMap<Queue.BuildableItem, Timer.Context>();
+        private final Map<Queue.WaitingItem, Timer.Context> waiting = new WeakHashMap<Queue.WaitingItem, Timer.Context>();
 
         public static ScheduledRate instance() {
             return Jenkins.getInstance().getExtensionList(QueueListener.class).get(ScheduledRate.class);
@@ -444,7 +504,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 return;
             }
             ;
-            JobScheduledDuration action;
+            TimeInQueueAction action;
             synchronized (actions) {
                 action = actions.remove(context);
             }
@@ -456,67 +516,80 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         public void onLeft(Queue.LeftItem li) {
             long millisecondsInQueue = System.currentTimeMillis() - li.getInQueueSince();
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
-            if (instance != null && instance.jenkinsJobScheduleTime != null) {
-                instance.jenkinsJobScheduleTime.update(millisecondsInQueue, TimeUnit.MILLISECONDS);
+            if (instance != null && instance.jenkinsJobQueueTime != null) {
+                instance.jenkinsJobQueueTime.update(millisecondsInQueue, TimeUnit.MILLISECONDS);
             }
             if (li.outcome != null) {
                 synchronized (actions) {
-                    actions.put(li.outcome, new JobScheduledDuration(millisecondsInQueue));
+                    actions.put(li.outcome, new TimeInQueueAction(millisecondsInQueue));
                 }
             }
         }
 
-    }
-
-    public static class JobScheduledDuration implements Serializable, Action {
-
-        private static final long serialVersionUID = 1L;
-        private final long scheduledTimeMillis;
-
-        public JobScheduledDuration(long scheduledTimeMillis) {
-            this.scheduledTimeMillis = scheduledTimeMillis;
+        @Override
+        public void onEnterBlocked(Queue.BlockedItem bi) {
+            JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
+            if (instance != null && instance.jenkinsJobBlockedTime != null) {
+                synchronized (blocked) {
+                    if (!blocked.containsKey(bi)) {
+                        blocked.put(bi, instance.jenkinsJobBlockedTime.time());
+                    }
+                }
+            }
         }
 
-        public long getScheduledTimeMillis() {
-            return scheduledTimeMillis;
+        @Override
+        public void onLeaveBlocked(Queue.BlockedItem bi) {
+            synchronized (blocked) {
+                Timer.Context context = blocked.remove(bi);
+                if (context != null) {
+                    context.stop();
+                }
+            }
         }
 
-        public String getIconFileName() {
-            return null;
+        @Override
+        public void onEnterBuildable(Queue.BuildableItem bi) {
+            JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
+            if (instance != null && instance.jenkinsJobBuildableTime!= null) {
+                synchronized (buildable) {
+                    if (!buildable.containsKey(bi)) {
+                        buildable.put(bi, instance.jenkinsJobBuildableTime.time());
+                    }
+                }
+            }
         }
 
-        public String getDisplayName() {
-            return null;
+        @Override
+        public void onLeaveBuildable(Queue.BuildableItem bi) {
+            synchronized (buildable) {
+                Timer.Context context = buildable.remove(bi);
+                if (context != null) {
+                    context.stop();
+                }
+            }
         }
 
-        public String getUrlName() {
-            return null;
-        }
-    }
-
-    public static class ScheduledTime implements Serializable, Action {
-
-        private static final long serialVersionUID = 1L;
-        private final long scheduledTimeMillis;
-
-        public ScheduledTime(long scheduledTimeMillis) {
-            this.scheduledTimeMillis = scheduledTimeMillis;
+        @Override
+        public void onEnterWaiting(Queue.WaitingItem wi) {
+            JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
+            if (instance != null && instance.jenkinsJobWaitingTime != null) {
+                synchronized (waiting) {
+                    if (!waiting.containsKey(wi)) {
+                        waiting.put(wi, instance.jenkinsJobWaitingTime.time());
+                    }
+                }
+            }
         }
 
-        public long getScheduledTimeMillis() {
-            return scheduledTimeMillis;
-        }
-
-        public String getIconFileName() {
-            return null;
-        }
-
-        public String getDisplayName() {
-            return null;
-        }
-
-        public String getUrlName() {
-            return null;
+        @Override
+        public void onLeaveWaiting(Queue.WaitingItem wi) {
+            synchronized (waiting) {
+                Timer.Context context = waiting.remove(wi);
+                if (context != null) {
+                    context.stop();
+                }
+            }
         }
     }
 

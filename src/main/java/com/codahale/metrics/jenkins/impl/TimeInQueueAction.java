@@ -1,0 +1,70 @@
+package com.codahale.metrics.jenkins.impl;
+
+import hudson.Util;
+import hudson.model.Run;
+import jenkins.model.RunAction2;
+import org.kohsuke.stapler.export.Exported;
+import org.kohsuke.stapler.export.ExportedBean;
+
+import java.io.Serializable;
+
+/**
+* @author Stephen Connolly
+*/
+@ExportedBean
+public class TimeInQueueAction implements Serializable, RunAction2 {
+
+    private static final long serialVersionUID = 1L;
+    private final long queuingDurationMillis;
+    private transient Run<?,?> run;
+
+    public TimeInQueueAction(long queuingDurationMillis) {
+        this.queuingDurationMillis = queuingDurationMillis;
+    }
+
+    @Exported(visibility = 1)
+    public long getQueuingDurationMillis() {
+        return queuingDurationMillis;
+    }
+
+    public long getBuildingDurationMillis() {
+        return (run == null ? 0L : run.getDuration());
+    }
+
+    @Exported(visibility = 1)
+    public long getTotalDurationMillis() {
+        return queuingDurationMillis + getBuildingDurationMillis();
+    }
+
+    public String getQueuingDurationString() {
+        return Util.getTimeSpanString(getQueuingDurationMillis());
+    }
+
+    public String getBuildingDurationString() {
+        return Util.getTimeSpanString(getBuildingDurationMillis());
+    }
+
+    public String getTotalDurationString() {
+        return Util.getTimeSpanString(getTotalDurationMillis());
+    }
+
+    public String getIconFileName() {
+        return null;
+    }
+
+    public String getDisplayName() {
+        return "Timings";
+    }
+
+    public String getUrlName() {
+        return "timings";
+    }
+
+    public void onAttached(Run<?, ?> r) {
+        run = r;
+    }
+
+    public void onLoad(Run<?, ?> r) {
+        run = r;
+    }
+}
