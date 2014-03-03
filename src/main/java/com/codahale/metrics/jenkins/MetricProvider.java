@@ -46,7 +46,7 @@ public abstract class MetricProvider implements ExtensionPoint {
     public abstract MetricSet getMetricSet();
 
     protected static Map.Entry<String, Metric> metric(String name, Metric metric) {
-        return new StringMetricEntry(name, metric);
+        return new StringImmutableEntry<Metric>(name, metric);
     }
 
     protected static MetricSet metrics(Map.Entry<String, Metric>... metrics) {
@@ -55,28 +55,6 @@ public abstract class MetricProvider implements ExtensionPoint {
             result.put(metric.getKey(), metric.getValue());
         }
         return new FixedMetricSet(result);
-    }
-
-    private static class StringMetricEntry implements Map.Entry<String, Metric> {
-        private final String name;
-        private final Metric metric;
-
-        public StringMetricEntry(String name, Metric metric) {
-            this.name = name;
-            this.metric = metric;
-        }
-
-        public String getKey() {
-            return name;
-        }
-
-        public Metric getValue() {
-            return metric;
-        }
-
-        public Metric setValue(Metric value) {
-            throw new UnsupportedOperationException();
-        }
     }
 
     private static class FixedMetricSet implements MetricSet {
