@@ -27,6 +27,7 @@ public class AutoSamplingHistogram extends Histogram {
         this(source, new ExponentiallyDecayingReservoir());
 
     }
+
     public AutoSamplingHistogram(Gauge<? extends Number> source, Reservoir reservoir) {
         super(reservoir);
         this.source = source;
@@ -42,7 +43,7 @@ public class AutoSamplingHistogram extends Histogram {
     }
 
     public MetricSet toMetricSet() {
-        final Map<String,Metric> metrics = new LinkedHashMap<String, Metric>(2);
+        final Map<String, Metric> metrics = new LinkedHashMap<String, Metric>(2);
         metrics.put("value", source);
         metrics.put("history", this);
         return new GaugeHistogramMetricSet(metrics);

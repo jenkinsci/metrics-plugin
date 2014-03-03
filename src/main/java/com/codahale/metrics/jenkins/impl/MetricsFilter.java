@@ -91,7 +91,8 @@ public class MetricsFilter implements Filter {
             metersByStatusCode.put(entry.getKey(), metricsRegistry.meter(name("http", entry.getValue())));
         }
         this.otherMeter = metricsRegistry == null ? new Meter() : metricsRegistry.meter(name("http", otherMetricName));
-        this.activeRequests = metricsRegistry == null ? new Counter() : metricsRegistry.counter(name("http", "activeRequests"));
+        this.activeRequests =
+                metricsRegistry == null ? new Counter() : metricsRegistry.counter(name("http", "activeRequests"));
         this.requestTimer = metricsRegistry == null ? new Timer() : metricsRegistry.timer(name("http", "requests"));
 
     }

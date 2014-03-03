@@ -9,14 +9,14 @@ import org.kohsuke.stapler.export.ExportedBean;
 import java.io.Serializable;
 
 /**
-* @author Stephen Connolly
-*/
+ * @author Stephen Connolly
+ */
 @ExportedBean
 public class TimeInQueueAction implements Serializable, RunAction2 {
 
     private static final long serialVersionUID = 1L;
     private final long queuingDurationMillis;
-    private transient Run<?,?> run;
+    private transient Run<?, ?> run;
 
     public TimeInQueueAction(long queuingDurationMillis) {
         this.queuingDurationMillis = queuingDurationMillis;

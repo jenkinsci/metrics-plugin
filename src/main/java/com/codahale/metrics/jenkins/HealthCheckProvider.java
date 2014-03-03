@@ -37,6 +37,7 @@ public abstract class HealthCheckProvider implements ExtensionPoint {
 
     /**
      * A map of {@link HealthCheck} instances keyed by name.
+     *
      * @return a map of {@link HealthCheck} instances keyed by name.
      */
     @NonNull

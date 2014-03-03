@@ -39,18 +39,19 @@ import java.util.Map;
 public abstract class MetricProvider implements ExtensionPoint {
     /**
      * Returns the set of metrics to register.
+     *
      * @return the set of metrics to register.
      */
     @NonNull
     public abstract MetricSet getMetricSet();
 
-    protected static Map.Entry<String,Metric> metric(String name, Metric metric) {
+    protected static Map.Entry<String, Metric> metric(String name, Metric metric) {
         return new StringMetricEntry(name, metric);
     }
 
-    protected static MetricSet metrics(Map.Entry<String,Metric>... metrics) {
-        final Map<String,Metric> result = new LinkedHashMap<String, Metric>(metrics.length);
-        for (Map.Entry<String,Metric> metric: metrics) {
+    protected static MetricSet metrics(Map.Entry<String, Metric>... metrics) {
+        final Map<String, Metric> result = new LinkedHashMap<String, Metric>(metrics.length);
+        for (Map.Entry<String, Metric> metric : metrics) {
             result.put(metric.getKey(), metric.getValue());
         }
         return new FixedMetricSet(result);

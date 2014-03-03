@@ -106,7 +106,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             Set<String> accessKeySet = this.accessKeySet;
             if (accessKeySet == null) {
                 accessKeySet = new HashSet<String>();
-                for (Provider p: Jenkins.getInstance().getExtensionList(Provider.class)) {
+                for (Provider p : Jenkins.getInstance().getExtensionList(Provider.class)) {
                     for (MetricsAccessKey k : p.getAccessKeys()) {
                         accessKeySet.add(k.getKey());
                     }
@@ -139,7 +139,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
 
         public void reindexAccessKeys() {
             Set<String> accessKeySet = new HashSet<String>();
-            for (Provider p: Jenkins.getInstance().getExtensionList(Provider.class)) {
+            for (Provider p : Jenkins.getInstance().getExtensionList(Provider.class)) {
                 for (MetricsAccessKey k : p.getAccessKeys()) {
                     accessKeySet.add(k.getKey());
                 }
