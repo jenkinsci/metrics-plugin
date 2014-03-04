@@ -33,7 +33,7 @@
   </parent>
 
   <artifactId>codahale-metrics</artifactId>
-  <version>3.0.1-1-SNAPSHOT</version>
+  <version>3.0.2-1-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <name>Codahale Metrics Plugin</name>
@@ -68,7 +68,7 @@
   </scm>
 
   <properties>
-    <metrics.version>3.0.1</metrics.version>
+    <metrics.version>3.0.2</metrics.version>
     <git.provider>git</git.provider>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
