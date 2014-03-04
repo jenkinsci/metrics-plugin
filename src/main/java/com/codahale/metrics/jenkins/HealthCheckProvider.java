@@ -24,7 +24,6 @@
 
 package com.codahale.metrics.jenkins;
 
-import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.health.HealthCheck;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.ExtensionPoint;
@@ -38,6 +37,24 @@ import java.util.Map;
  */
 public abstract class HealthCheckProvider implements ExtensionPoint {
 
+    protected static Map.Entry<String, HealthCheck> check(String name, HealthCheck metric) {
+        return new StringImmutableEntry<HealthCheck>(name, metric);
+    }
+
+    protected static Map.Entry<String, HealthCheck> check(String name, HealthCheck metric, boolean enabled) {
+        return new StringImmutableEntry<HealthCheck>(name, enabled ? metric : null);
+    }
+
+    protected static Map<String, HealthCheck> checks(Map.Entry<String, HealthCheck>... metrics) {
+        final Map<String, HealthCheck> result = new LinkedHashMap<String, HealthCheck>(metrics.length);
+        for (Map.Entry<String, HealthCheck> metric : metrics) {
+            if (metric.getValue() != null) {
+                result.put(metric.getKey(), metric.getValue());
+            }
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
     /**
      * A map of {@link HealthCheck} instances keyed by name.
      *
@@ -45,18 +62,6 @@ public abstract class HealthCheckProvider implements ExtensionPoint {
      */
     @NonNull
     public abstract Map<String, HealthCheck> getHealthChecks();
-
-    protected static Map.Entry<String, HealthCheck> check(String name, HealthCheck metric) {
-        return new StringImmutableEntry<HealthCheck>(name, metric);
-    }
-
-    protected static Map<String, HealthCheck> checks(Map.Entry<String, HealthCheck>... metrics) {
-        final Map<String, HealthCheck> result = new LinkedHashMap<String, HealthCheck>(metrics.length);
-        for (Map.Entry<String, HealthCheck> metric : metrics) {
-            result.put(metric.getKey(), metric.getValue());
-        }
-        return Collections.unmodifiableMap(result);
-    }
 
 
 }

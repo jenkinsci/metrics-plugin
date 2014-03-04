@@ -105,11 +105,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
     @RequirePOST
     public HttpResponse doHealthcheck(@QueryParameter("key") String key) {
         Metrics.checkAccessKey(key);
-        try {
             return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
-        } catch (NullPointerException e) {
-            return HttpResponses.error(HttpServletResponse.SC_SERVICE_UNAVAILABLE, e);
-        }
     }
 
     @RequirePOST
@@ -177,11 +173,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
     public class Admin {
 
         public HttpResponse doHealthcheck() {
-            try {
                 return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
-            } catch (NullPointerException e) {
-                return HttpResponses.error(HttpServletResponse.SC_SERVICE_UNAVAILABLE, e);
-            }
         }
 
         public HttpResponse doMetrics() {

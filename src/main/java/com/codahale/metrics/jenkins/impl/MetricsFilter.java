@@ -90,10 +90,9 @@ public class MetricsFilter implements Filter {
         for (Map.Entry<Integer, String> entry : meterNamesByStatusCode.entrySet()) {
             metersByStatusCode.put(entry.getKey(), metricsRegistry.meter(name("http", entry.getValue())));
         }
-        this.otherMeter = metricsRegistry == null ? new Meter() : metricsRegistry.meter(name("http", otherMetricName));
-        this.activeRequests =
-                metricsRegistry == null ? new Counter() : metricsRegistry.counter(name("http", "activeRequests"));
-        this.requestTimer = metricsRegistry == null ? new Timer() : metricsRegistry.timer(name("http", "requests"));
+        this.otherMeter = metricsRegistry.meter(name("http", otherMetricName));
+        this.activeRequests = metricsRegistry.counter(name("http", "activeRequests"));
+        this.requestTimer = metricsRegistry.timer(name("http", "requests"));
 
     }
 

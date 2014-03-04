@@ -372,7 +372,6 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 getOrCreateTimer(computer);
             }
             MetricRegistry metricRegistry = Metrics.metricRegistry();
-            if (metricRegistry != null) {
                 for (Map.Entry<Computer, Timer> entry : computerBuildDurations.entrySet()) {
                     if (forRetention.contains(entry.getKey())) {
                         continue;
@@ -380,7 +379,6 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     // purge dead nodes
                     metricRegistry.remove(name("jenkins", "node", entry.getKey().getName(), "builds"));
                 }
-            }
             computerBuildDurations.keySet().retainAll(forRetention);
         }
 
@@ -389,10 +387,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     private synchronized Timer getOrCreateTimer(Computer computer) {
         Timer timer = computerBuildDurations.get(computer);
         if (timer == null) {
-            MetricRegistry registry = Metrics.metricRegistry();
-            timer = registry == null
-                    ? new Timer()
-                    : registry.timer(name("jenkins", "node", computer.getName(), "builds"));
+            timer = Metrics.metricRegistry().timer(name("jenkins", "node", computer.getName(), "builds"));
             computerBuildDurations.put(computer, timer);
         }
         return timer;
