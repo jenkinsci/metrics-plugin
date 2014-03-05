@@ -38,7 +38,7 @@ import java.util.Map;
  */
 public abstract class MetricProvider implements ExtensionPoint {
     protected static Map.Entry<String, Metric> metric(String name, Metric metric) {
-        return new StringImmutableEntry<Metric>(name, metric);
+        return metric == null ? null : new StringImmutableEntry<Metric>(name, metric);
     }
 
     protected static MetricSet metrics(Map.Entry<String, Metric>... metrics) {
