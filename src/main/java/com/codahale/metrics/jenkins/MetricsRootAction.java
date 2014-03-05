@@ -32,9 +32,11 @@ import com.codahale.metrics.jvm.ThreadDump;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import hudson.Extension;
+import hudson.Util;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
 import jenkins.model.Jenkins;
+import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
 import org.kohsuke.stapler.StaplerRequest;
@@ -105,7 +107,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
     @RequirePOST
     public HttpResponse doHealthcheck(@QueryParameter("key") String key) {
         Metrics.checkAccessKey(key);
-            return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
+        return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
     }
 
     @RequirePOST
@@ -173,7 +175,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
     public class Admin {
 
         public HttpResponse doHealthcheck() {
-                return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
+            return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
         }
 
         public HttpResponse doMetrics() {
@@ -211,7 +213,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
     }
 
     private class HealthCheckResponse implements HttpResponse {
-        private static final String CONTENT_TYPE = "application/json";
+        private static final String JSONP_CONTENT_TYPE = "text/javascript";
+        private static final String JSON_CONTENT_TYPE = "application/json";
         private static final String CACHE_CONTROL = "Cache-Control";
         private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
         private final SortedMap<String, HealthCheck.Result> results;
@@ -222,8 +225,10 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
         public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
                 ServletException {
+            boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
+            String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
             resp.setHeader(CACHE_CONTROL, NO_CACHE);
-            resp.setContentType(CONTENT_TYPE);
+            resp.setContentType(jsonp ? JSONP_CONTENT_TYPE : JSON_CONTENT_TYPE);
             if (results.isEmpty()) {
                 resp.setStatus(HttpServletResponse.SC_NOT_IMPLEMENTED);
             } else {
@@ -236,7 +241,14 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
             final OutputStream output = resp.getOutputStream();
             try {
-                getWriter(healthCheckMapper, req).writeValue(output, results);
+                if (jsonp) {
+                    output.write(jsonpCallback.getBytes("US-ASCII"));
+                    output.write("(".getBytes("US-ASCII"));
+                }
+                output.write(getWriter(healthCheckMapper, req).writeValueAsBytes(results));
+                if (jsonp) {
+                    output.write(");".getBytes("US-ASCII"));
+                }
             } finally {
                 output.close();
             }
@@ -244,7 +256,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
     }
 
     private class MetricsResponse implements HttpResponse {
-        private static final String CONTENT_TYPE = "application/json";
+        private static final String JSONP_CONTENT_TYPE = "text/javascript";
+        private static final String JSON_CONTENT_TYPE = "application/json";
         private static final String CACHE_CONTROL = "Cache-Control";
         private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
         private final MetricRegistry registry;
@@ -255,13 +268,27 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
         public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
                 ServletException {
-            resp.setStatus(HttpServletResponse.SC_OK);
+            boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
+            String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
+            String prefix = Util.fixEmptyAndTrim(req.getParameter("prefix"));
+            String postfix = Util.fixEmptyAndTrim(req.getParameter("postfix"));
             resp.setHeader(CACHE_CONTROL, NO_CACHE);
-            resp.setContentType(CONTENT_TYPE);
+            resp.setContentType(jsonp ? JSONP_CONTENT_TYPE : JSON_CONTENT_TYPE);
+            resp.setStatus(HttpServletResponse.SC_OK);
 
             final OutputStream output = resp.getOutputStream();
             try {
-                getWriter(metricsMapper, req).writeValue(output, registry);
+                if (jsonp) {
+                    output.write(jsonpCallback.getBytes("US-ASCII"));
+                    output.write("(".getBytes("US-ASCII"));
+                }
+                output.write(getWriter(metricsMapper, req)
+                        .writeValueAsBytes(prefix == null && postfix == null
+                                ? registry
+                                : new NameRewriterMetricRegistry(prefix, registry, postfix)));
+                if (jsonp) {
+                    output.write(");".getBytes("US-ASCII"));
+                }
             } finally {
                 output.close();
             }
