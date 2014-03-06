@@ -24,6 +24,7 @@
 
 package com.codahale.metrics.jenkins;
 
+import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
@@ -236,7 +237,13 @@ public class Metrics extends Plugin {
             return metrics(
                     metric(name("jenkins", "health-check", "duration"), c.getHealthCheckDuration()),
                     metric(name("jenkins", "health-check", "count"), c.getHealthCheckCount()),
-                    metric(name("jenkins", "health-check", "score"), c.getHealthCheckScore())
+                    metric(name("jenkins", "health-check", "score"), c.getHealthCheckScore()),
+                    metric(name("jenkins", "health-check", "inverse-score"), new DerivativeGauge<Double,Double>(c.getHealthCheckScore()) {
+                        @Override
+                        protected Double transform(Double value) {
+                            return value == null ? null:1.0-value;
+                        }
+                    })
             );
         }
     }
