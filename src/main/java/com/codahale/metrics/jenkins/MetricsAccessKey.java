@@ -218,7 +218,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             }
         }
 
-        private MetricsAccessKey getAccessKey(String accessKey) {
+        public MetricsAccessKey getAccessKey(String accessKey) {
             for (Provider p : Jenkins.getInstance().getExtensionList(Provider.class)) {
                 MetricsAccessKey key = p.getAccessKey(accessKey);
                 if (key != null) {
