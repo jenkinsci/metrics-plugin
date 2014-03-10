@@ -162,7 +162,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             if (!accessKeySet.contains(accessKey)) {
                 // slow check
                 for (Provider p : Jenkins.getInstance().getExtensionList(Provider.class)) {
-                    if (p.mayHaveOnDemandKeys && p.getAccessKey(accessKey) != null) {
+                    if (p.isMayHaveOnDemandKeys() && p.getAccessKey(accessKey) != null) {
                         return;
                     }
                 }
@@ -261,25 +261,39 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     /**
      * An extension point that allows for plugins to provide their own set of access keys.
      */
-    public static abstract class Provider implements ExtensionPoint {
+    public static abstract class Provider implements ExtensionPoint, Serializable {
 
+        /**
+         * Ensure consistent serialization.
+         */
+        private static final long serialVersionUID = 1L;
         /**
          * Tracks if {@link #getAccessKey(String)} has been overridden (which means that there may be keys that are
          * not iterable from the {@link #getAccessKeys()} method.
          */
-        private final boolean mayHaveOnDemandKeys;
+        private transient Boolean mayHaveOnDemandKeys;
 
-        protected Provider() {
-            boolean needsSlow = true;
-            try {
-                Method method = getClass().getMethod("getAccessKey", String.class);
-                needsSlow = !method.getDeclaringClass().equals(Provider.class);
-            } catch (NoSuchMethodException e) {
-                needsSlow = true;
+        /**
+         * Returns {@code true} if {@link #getAccessKey(String)} has been overridden.
+         *
+         * @return {@code true} if {@link #getAccessKey(String)} has been overridden.
+         */
+        private boolean isMayHaveOnDemandKeys() {
+            if (mayHaveOnDemandKeys == null) {
+                // idempotent so no need for syncronization.
+                boolean needsSlow;
+                try {
+                    Method method = getClass().getMethod("getAccessKey", String.class);
+                    needsSlow = !method.getDeclaringClass().equals(Provider.class);
+                } catch (NoSuchMethodException e) {
+                    needsSlow = true;
+                }
+                this.mayHaveOnDemandKeys = needsSlow;
             }
-            this.mayHaveOnDemandKeys = needsSlow;
+            return mayHaveOnDemandKeys;
         }
 
+        @NonNull
         public abstract List<MetricsAccessKey> getAccessKeys();
 
         /**
@@ -299,6 +313,33 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             return null;
         }
 
+    }
 
+    public static class FixedListProviderImpl extends Provider {
+
+        /**
+         * Ensure consistent serialization.
+         */
+        private static final long serialVersionUID = 1L;
+        /**
+         * The access keys.
+         */
+        @CheckForNull
+        private final List<MetricsAccessKey> accessKeys;
+
+        public FixedListProviderImpl(@CheckForNull List<MetricsAccessKey> accessKeys) {
+            this.accessKeys = accessKeys == null ? null : new ArrayList<MetricsAccessKey>(accessKeys);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        @NonNull
+        public List<MetricsAccessKey> getAccessKeys() {
+            return accessKeys == null
+                    ? Collections.<MetricsAccessKey>emptyList()
+                    : Collections.unmodifiableList(accessKeys);
+        }
     }
 }
