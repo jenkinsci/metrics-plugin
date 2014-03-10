@@ -43,6 +43,12 @@
   <f:entry title="${%Description}" field="description">
     <f:textbox/>
   </f:entry>
+  <f:entry title="${%Permissions}">
+    <f:checkbox title="${%Ping}" field="canPing" default="true"/>
+    <f:checkbox title="${%Thread dump}" field="canThreadDump" default="false"/>
+    <f:checkbox title="${%Health check}" field="canHealthCheck" default="true"/>
+    <f:checkbox title="${%Metrics}" field="canMetrics" default="true"/>
+  </f:entry>
   <f:entry title="">
      <div align="right">
        <f:repeatableDeleteButton />

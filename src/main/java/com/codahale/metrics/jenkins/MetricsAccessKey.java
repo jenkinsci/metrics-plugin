@@ -24,6 +24,8 @@
 
 package com.codahale.metrics.jenkins;
 
+import com.codahale.metrics.Metric;
+import com.codahale.metrics.MetricFilter;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
@@ -34,6 +36,7 @@ import hudson.model.Descriptor;
 import jenkins.model.Jenkins;
 import net.sf.json.JSONObject;
 import org.acegisecurity.AccessDeniedException;
+import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 
@@ -44,6 +47,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * @author Stephen Connolly
@@ -53,12 +57,25 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     private final String key;
     @CheckForNull
     private final String description;
+    private final boolean canPing;
+    private final boolean canThreadDump;
+    private final boolean canHealthCheck;
+    private final boolean canMetrics;
+
+    public MetricsAccessKey(String description, String key) {
+        this(description, key, true, false, false, true);
+    }
 
     @DataBoundConstructor
-    public MetricsAccessKey(String description, String key) {
+    public MetricsAccessKey(String description, String key, boolean canPing, boolean canThreadDump,
+                            boolean canHealthCheck, boolean canMetrics) {
         this.description = Util.fixEmptyAndTrim(description);
         key = Util.fixEmptyAndTrim(key);
         this.key = key == null ? DescriptorImpl.generateKey() : key;
+        this.canPing = canPing;
+        this.canThreadDump = canThreadDump;
+        this.canHealthCheck = canHealthCheck;
+        this.canMetrics = canMetrics;
     }
 
     @CheckForNull
@@ -71,13 +88,28 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         return key;
     }
 
+    public boolean isCanPing() {
+        return canPing;
+    }
+
+    public boolean isCanThreadDump() {
+        return canThreadDump;
+    }
+
+    public boolean isCanHealthCheck() {
+        return canHealthCheck;
+    }
+
+    public boolean isCanMetrics() {
+        return canMetrics;
+    }
+
     @Extension
     public static class DescriptorImpl extends Descriptor<MetricsAccessKey> {
 
         private static final SecureRandom entropy = new SecureRandom();
         private static final char[] keyChars =
                 "ABCEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray();
-
         @GuardedBy("this")
         private List<MetricsAccessKey> accessKeys;
         private transient volatile Set<String> accessKeySet;
@@ -85,6 +117,15 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         public DescriptorImpl() {
             super();
             load();
+        }
+
+        @NonNull
+        public static String generateKey() {
+            StringBuilder b = new StringBuilder(64);
+            for (int i = 0; i < 64; i++) {
+                b.append(keyChars[entropy.nextInt(keyChars.length)]);
+            }
+            return b.toString();
         }
 
         @Override
@@ -123,18 +164,81 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             }
         }
 
+        public boolean hasAccessKeyPing(@CheckForNull String accessKey) {
+            checkAccessKey(accessKey);
+            MetricsAccessKey key = getAccessKey(accessKey);
+            return key != null && key.isCanPing();
+        }
+
+        public boolean hasAccessKeyThreadDump(@CheckForNull String accessKey) {
+            checkAccessKey(accessKey);
+            MetricsAccessKey key = getAccessKey(accessKey);
+            return key != null && key.isCanThreadDump();
+        }
+
+        public boolean hasAccessKeyHealthCheck(@CheckForNull String accessKey) {
+            checkAccessKey(accessKey);
+            MetricsAccessKey key = getAccessKey(accessKey);
+            return key != null && key.isCanHealthCheck();
+        }
+
+        public boolean hasAccessKeyMetrics(@CheckForNull String accessKey) {
+            checkAccessKey(accessKey);
+            MetricsAccessKey key = getAccessKey(accessKey);
+            return key != null && key.isCanMetrics();
+        }
+
+        public void checkAccessKeyPing(@CheckForNull String accessKey) {
+            if (!hasAccessKeyPing(accessKey)) {
+                throw new AccessDeniedException(Messages.MetricsAccessKey_invalidAccessKey(accessKey));
+            }
+        }
+
+        public void checkAccessKeyThreadDump(@CheckForNull String accessKey) {
+            if (!hasAccessKeyThreadDump(accessKey)) {
+                throw new AccessDeniedException(Messages.MetricsAccessKey_invalidAccessKey(accessKey));
+            }
+        }
+
+        public void checkAccessKeyHealthCheck(@CheckForNull String accessKey) {
+            if (!hasAccessKeyHealthCheck(accessKey)) {
+                throw new AccessDeniedException(Messages.MetricsAccessKey_invalidAccessKey(accessKey));
+            }
+        }
+
+        public void checkAccessKeyMetrics(@CheckForNull String accessKey) {
+            if (!hasAccessKeyMetrics(accessKey)) {
+                throw new AccessDeniedException(Messages.MetricsAccessKey_invalidAccessKey(accessKey));
+            }
+        }
+
+        private MetricsAccessKey getAccessKey(String accessKey) {
+            MetricsAccessKey key = null;
+            outer:
+            for (Provider p : Jenkins.getInstance().getExtensionList(Provider.class)) {
+                for (MetricsAccessKey k : p.getAccessKeys()) {
+                    if (StringUtils.equals(accessKey, k.getKey())) {
+                        key = k;
+                        break outer;
+                    }
+                }
+            }
+            if (key == null) {
+                synchronized (this) {
+                    for (MetricsAccessKey k : accessKeys) {
+                        if (StringUtils.equals(accessKey, k.getKey())) {
+                            key = k;
+                            break;
+                        }
+                    }
+                }
+            }
+            return key;
+        }
+
         @Override
         public String getDisplayName() {
             return Messages.MetricsAccessKey_displayName();
-        }
-
-        @NonNull
-        public static String generateKey() {
-            StringBuilder b = new StringBuilder(64);
-            for (int i = 0; i < 64; i++) {
-                b.append(keyChars[entropy.nextInt(keyChars.length)]);
-            }
-            return b.toString();
         }
 
         public void reindexAccessKeys() {

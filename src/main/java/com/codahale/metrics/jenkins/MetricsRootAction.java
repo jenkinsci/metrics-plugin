@@ -60,7 +60,7 @@ import java.util.concurrent.TimeUnit;
 @Extension
 public class MetricsRootAction implements UnprotectedRootAction {
 
-    private final Admin admin = new Admin();
+    private final Pseudoservlet currentUser = new CurrentUserPseudoservlet();
     private final ObjectMapper healthCheckMapper = new ObjectMapper().registerModule(new HealthCheckModule());
     private final ObjectMapper metricsMapper =
             new ObjectMapper().registerModule(new MetricsModule(TimeUnit.MINUTES, TimeUnit.SECONDS, true));
@@ -94,37 +94,37 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return "codahale-metrics";
     }
 
-    public Object getDynamic(String key) {
+    public Object getDynamic(final String key) {
         Metrics.checkAccessKey(key);
-        return admin;
+        return new AccessKeyPseudoservlet(key);
     }
 
     public Object getCurrentUser() {
         Jenkins.getInstance().checkPermission(Metrics.VIEW);
-        return admin;
+        return currentUser;
     }
 
     @RequirePOST
     public HttpResponse doHealthcheck(@QueryParameter("key") String key) {
-        Metrics.checkAccessKey(key);
+        Metrics.checkAccessKeyHealthCheck(key);
         return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
     }
 
     @RequirePOST
     public HttpResponse doMetrics(@QueryParameter("key") String key) {
-        Metrics.checkAccessKey(key);
+        Metrics.checkAccessKeyMetrics(key);
         return new MetricsResponse(Metrics.metricRegistry());
     }
 
     @RequirePOST
     public HttpResponse doPing(@QueryParameter("key") String key) {
-        Metrics.checkAccessKey(key);
+        Metrics.checkAccessKeyPing(key);
         return new PingResponse();
     }
 
     @RequirePOST
     public HttpResponse doThreads(@QueryParameter("key") String key) {
-        Metrics.checkAccessKey(key);
+        Metrics.checkAccessKeyThreadDump(key);
         return new ThreadDumpResponse(new ThreadDump(ManagementFactory.getThreadMXBean()));
     }
 
@@ -172,7 +172,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
     }
 
-    public class Admin {
+    public class Pseudoservlet {
 
         public HttpResponse doHealthcheck() {
             return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
@@ -292,6 +292,70 @@ public class MetricsRootAction implements UnprotectedRootAction {
             } finally {
                 output.close();
             }
+        }
+    }
+
+    public class CurrentUserPseudoservlet extends Pseudoservlet {
+        @Override
+        public HttpResponse doHealthcheck() {
+            Jenkins.getInstance().checkPermission(Metrics.HEALTH_CHECK);
+            return super.doHealthcheck();
+        }
+
+        @Override
+        public HttpResponse doIndex() {
+            Jenkins.getInstance().checkPermission(Metrics.VIEW);
+            return super.doIndex();
+        }
+
+        @Override
+        public HttpResponse doMetrics() {
+            Jenkins.getInstance().checkPermission(Metrics.VIEW);
+            return super.doMetrics();
+        }
+
+        @Override
+        public HttpResponse doPing() {
+            Jenkins.getInstance().checkPermission(Metrics.VIEW);
+            return super.doPing();
+        }
+
+        @Override
+        public HttpResponse doThreads() {
+            Jenkins.getInstance().checkPermission(Metrics.THREAD_DUMP);
+            return super.doThreads();
+        }
+    }
+
+    public class AccessKeyPseudoservlet extends Pseudoservlet {
+        private final String key;
+
+        public AccessKeyPseudoservlet(String key) {
+            this.key = key;
+        }
+
+        @Override
+        public HttpResponse doHealthcheck() {
+            Metrics.checkAccessKeyHealthCheck(key);
+            return super.doHealthcheck();
+        }
+
+        @Override
+        public HttpResponse doMetrics() {
+            Metrics.checkAccessKeyMetrics(key);
+            return super.doMetrics();
+        }
+
+        @Override
+        public HttpResponse doPing() {
+            Metrics.checkAccessKeyPing(key);
+            return super.doPing();
+        }
+
+        @Override
+        public HttpResponse doThreads() {
+            Metrics.checkAccessKeyThreadDump(key);
+            return super.doThreads();
         }
     }
 }

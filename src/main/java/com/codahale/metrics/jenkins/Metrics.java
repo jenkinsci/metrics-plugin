@@ -91,6 +91,16 @@ public class Metrics extends Plugin {
     public static final Permission VIEW = new Permission(PERMISSIONS,
             "View", Messages._Metrics_ViewPermission_Description(), Jenkins.ADMINISTER, PermissionScope.JENKINS);
     /**
+     * Permission to get a thread dump from the Codahale Metrics Operations Servlet.
+     */
+    public static final Permission THREAD_DUMP = new Permission(PERMISSIONS,
+            "ThreadDump", Messages._Metrics_ThreadDumpPermission_Description(), Jenkins.ADMINISTER, PermissionScope.JENKINS);
+    /**
+     * Permission to run healthchecks from the Codahale Metrics Operations Servlet.
+     */
+    public static final Permission HEALTH_CHECK = new Permission(PERMISSIONS,
+            "HealthCheck", Messages._Metrics_HealthCheckPermission_Description(), Jenkins.ADMINISTER, PermissionScope.JENKINS);
+    /**
      * Our logger.
      */
     private static final Logger LOGGER = Logger.getLogger(Metrics.class.getName());
@@ -167,6 +177,70 @@ public class Metrics extends Plugin {
             throw new IllegalStateException();
         }
         descriptor.checkAccessKey(accessKey);
+    }
+
+    /**
+     * Checks an access key.
+     *
+     * @param accessKey the access key.
+     */
+    public static void checkAccessKeyPing(@CheckForNull String accessKey) {
+        Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+                ? null
+                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        descriptor.checkAccessKeyPing(accessKey);
+    }
+
+    /**
+     * Checks an access key.
+     *
+     * @param accessKey the access key.
+     */
+    public static void checkAccessKeyThreadDump(@CheckForNull String accessKey) {
+        Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+                ? null
+                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        descriptor.checkAccessKeyThreadDump(accessKey);
+    }
+
+    /**
+     * Checks an access key.
+     *
+     * @param accessKey the access key.
+     */
+    public static void checkAccessKeyHealthCheck(@CheckForNull String accessKey) {
+        Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+                ? null
+                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        descriptor.checkAccessKeyHealthCheck(accessKey);
+    }
+
+    /**
+     * Checks an access key.
+     *
+     * @param accessKey the access key.
+     */
+    public static void checkAccessKeyMetrics(@CheckForNull String accessKey) {
+        Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+                ? null
+                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        descriptor.checkAccessKeyMetrics(accessKey);
     }
 
     /**
