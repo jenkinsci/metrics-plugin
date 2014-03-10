@@ -24,8 +24,6 @@
 
 package com.codahale.metrics.jenkins;
 
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricFilter;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
@@ -41,13 +39,13 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.lang.reflect.Method;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * @author Stephen Connolly
@@ -160,6 +158,12 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
                 }
             }
             if (!accessKeySet.contains(accessKey)) {
+                // slow check
+                for (Provider p : Jenkins.getInstance().getExtensionList(Provider.class)) {
+                    if (p.mayHaveOnDemandKeys && p.getAccessKey(accessKey) != null) {
+                        return;
+                    }
+                }
                 throw new AccessDeniedException(Messages.MetricsAccessKey_invalidAccessKey(accessKey));
             }
         }
@@ -213,27 +217,20 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         }
 
         private MetricsAccessKey getAccessKey(String accessKey) {
-            MetricsAccessKey key = null;
-            outer:
             for (Provider p : Jenkins.getInstance().getExtensionList(Provider.class)) {
-                for (MetricsAccessKey k : p.getAccessKeys()) {
+                MetricsAccessKey key = p.getAccessKey(accessKey);
+                if (key != null) {
+                    return key;
+                }
+            }
+            synchronized (this) {
+                for (MetricsAccessKey k : accessKeys) {
                     if (StringUtils.equals(accessKey, k.getKey())) {
-                        key = k;
-                        break outer;
+                        return k;
                     }
                 }
             }
-            if (key == null) {
-                synchronized (this) {
-                    for (MetricsAccessKey k : accessKeys) {
-                        if (StringUtils.equals(accessKey, k.getKey())) {
-                            key = k;
-                            break;
-                        }
-                    }
-                }
-            }
-            return key;
+            return null;
         }
 
         @Override
@@ -263,6 +260,43 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
      * An extension point that allows for plugins to provide their own set of access keys.
      */
     public static abstract class Provider implements ExtensionPoint {
+
+        /**
+         * Tracks if {@link #getAccessKey(String)} has been overridden (which means that there may be keys that are
+         * not iterable from the {@link #getAccessKeys()} method.
+         */
+        private final boolean mayHaveOnDemandKeys;
+
+        protected Provider() {
+            boolean needsSlow = true;
+            try {
+                Method method = getClass().getMethod("getAccessKey", String.class);
+                needsSlow = !method.getDeclaringClass().equals(Provider.class);
+            } catch (NoSuchMethodException e) {
+                needsSlow = true;
+            }
+            this.mayHaveOnDemandKeys = needsSlow;
+        }
+
         public abstract List<MetricsAccessKey> getAccessKeys();
+
+        /**
+         * Returns the definition of the specific access key. Note that all entries in {@link #getAccessKeys()} must
+         * be returned by this method, but it may also return additional entries.
+         *
+         * @param accessKey the access key to retrieve.
+         * @return the access key.
+         */
+        @CheckForNull
+        public MetricsAccessKey getAccessKey(String accessKey) {
+            for (MetricsAccessKey k : getAccessKeys()) {
+                if (StringUtils.equals(accessKey, k.getKey())) {
+                    return k;
+                }
+            }
+            return null;
+        }
+
+
     }
 }
