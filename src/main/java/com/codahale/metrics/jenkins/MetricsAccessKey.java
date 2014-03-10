@@ -39,6 +39,7 @@ import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.StaplerRequest;
 
 import javax.annotation.concurrent.GuardedBy;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.security.SecureRandom;
 import java.util.ArrayList;
@@ -50,7 +51,8 @@ import java.util.Set;
 /**
  * @author Stephen Connolly
  */
-public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> {
+public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> implements Serializable {
+    private static long serialVersionUID = 1L;
     @NonNull
     private final String key;
     @CheckForNull
