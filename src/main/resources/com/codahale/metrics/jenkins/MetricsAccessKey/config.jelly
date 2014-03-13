@@ -49,6 +49,9 @@
     <f:checkbox title="${%Health check}" field="canHealthCheck" default="true"/>
     <f:checkbox title="${%Metrics}" field="canMetrics" default="true"/>
   </f:entry>
+  <f:entry title="${%Origins}">
+    <f:textbox default="*"/>
+  </f:entry>
   <f:entry title="">
      <div align="right">
        <f:repeatableDeleteButton />

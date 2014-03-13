@@ -107,25 +107,25 @@ public class MetricsRootAction implements UnprotectedRootAction {
     @RequirePOST
     public HttpResponse doHealthcheck(@QueryParameter("key") String key) {
         Metrics.checkAccessKeyHealthCheck(key);
-        return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
+        return Metrics.cors(key, new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks()));
     }
 
     @RequirePOST
     public HttpResponse doMetrics(@QueryParameter("key") String key) {
         Metrics.checkAccessKeyMetrics(key);
-        return new MetricsResponse(Metrics.metricRegistry());
+        return Metrics.cors(key, new MetricsResponse(Metrics.metricRegistry()));
     }
 
     @RequirePOST
     public HttpResponse doPing(@QueryParameter("key") String key) {
         Metrics.checkAccessKeyPing(key);
-        return new PingResponse();
+        return Metrics.cors(key, new PingResponse());
     }
 
     @RequirePOST
     public HttpResponse doThreads(@QueryParameter("key") String key) {
         Metrics.checkAccessKeyThreadDump(key);
-        return new ThreadDumpResponse(new ThreadDump(ManagementFactory.getThreadMXBean()));
+        return Metrics.cors(key, new ThreadDumpResponse(new ThreadDump(ManagementFactory.getThreadMXBean())));
     }
 
     private static class PingResponse implements HttpResponse {
@@ -337,25 +337,25 @@ public class MetricsRootAction implements UnprotectedRootAction {
         @Override
         public HttpResponse doHealthcheck() {
             Metrics.checkAccessKeyHealthCheck(key);
-            return super.doHealthcheck();
+            return Metrics.cors(key, super.doHealthcheck());
         }
 
         @Override
         public HttpResponse doMetrics() {
             Metrics.checkAccessKeyMetrics(key);
-            return super.doMetrics();
+            return Metrics.cors(key, super.doMetrics());
         }
 
         @Override
         public HttpResponse doPing() {
             Metrics.checkAccessKeyPing(key);
-            return super.doPing();
+            return Metrics.cors(key, super.doPing());
         }
 
         @Override
         public HttpResponse doThreads() {
             Metrics.checkAccessKeyThreadDump(key);
-            return super.doThreads();
+            return Metrics.cors(key, super.doThreads());
         }
     }
 }

@@ -49,6 +49,7 @@ import hudson.util.PluginServletFilter;
 import hudson.util.StreamTaskListener;
 import hudson.util.TimeUnit2;
 import jenkins.model.Jenkins;
+import org.kohsuke.stapler.HttpResponse;
 
 import java.io.File;
 import java.io.IOException;
@@ -242,6 +243,18 @@ public class Metrics extends Plugin {
         }
         descriptor.checkAccessKeyMetrics(accessKey);
     }
+
+    public static HttpResponse cors(@CheckForNull String accessKey, final HttpResponse resp) {
+        Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+                ? null
+                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        return descriptor.cors(accessKey, resp);
+    }
+
 
     /**
      * Re-indexes all the access keys from the different {@link MetricsAccessKey.Provider} extensions.

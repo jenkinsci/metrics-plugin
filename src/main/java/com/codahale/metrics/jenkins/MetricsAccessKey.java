@@ -36,9 +36,13 @@ import net.sf.json.JSONObject;
 import org.acegisecurity.AccessDeniedException;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerResponse;
 
 import javax.annotation.concurrent.GuardedBy;
+import javax.servlet.ServletException;
+import java.io.IOException;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.security.SecureRandom;
@@ -52,7 +56,7 @@ import java.util.Set;
  * @author Stephen Connolly
  */
 public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> implements Serializable {
-    private static long serialVersionUID = 1L;
+    private static final long serialVersionUID = 1L;
     @NonNull
     private final String key;
     @CheckForNull
@@ -61,14 +65,16 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     private final boolean canThreadDump;
     private final boolean canHealthCheck;
     private final boolean canMetrics;
+    private final String origins;
+    private transient String[] originRegexs;
 
     public MetricsAccessKey(String description, String key) {
-        this(description, key, true, false, false, true);
+        this(description, key, true, false, false, true, null);
     }
 
     @DataBoundConstructor
     public MetricsAccessKey(String description, String key, boolean canPing, boolean canThreadDump,
-                            boolean canHealthCheck, boolean canMetrics) {
+                            boolean canHealthCheck, boolean canMetrics, String origins) {
         this.description = Util.fixEmptyAndTrim(description);
         key = Util.fixEmptyAndTrim(key);
         this.key = key == null ? DescriptorImpl.generateKey() : key;
@@ -76,6 +82,87 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         this.canThreadDump = canThreadDump;
         this.canHealthCheck = canHealthCheck;
         this.canMetrics = canMetrics;
+        this.origins = origins;
+    }
+
+    private static String globToRegex(String line) {
+        StringBuilder buf = new StringBuilder(line.length() + 16);
+        boolean escaping = false;
+        int braceDepth = 0;
+        for (char c : line.toCharArray()) {
+            switch (c) {
+                case '*':
+                    if (escaping) {
+                        buf.append("\\*");
+                    } else {
+                        buf.append(".*");
+                    }
+                    escaping = false;
+                    break;
+                case '?':
+                    if (escaping) {
+                        buf.append("\\?");
+                    } else {
+                        buf.append('.');
+                    }
+                    escaping = false;
+                    break;
+                case '.':
+                case '(':
+                case ')':
+                case '+':
+                case '|':
+                case '^':
+                case '$':
+                case '@':
+                case '%':
+                    buf.append('\\');
+                    buf.append(c);
+                    escaping = false;
+                    break;
+                case '\\':
+                    if (escaping) {
+                        buf.append("\\\\");
+                        escaping = false;
+                    } else {
+                        escaping = true;
+                    }
+                    break;
+                case '{':
+                    if (escaping) {
+                        buf.append("\\{");
+                    } else {
+                        buf.append('(');
+                        braceDepth++;
+                    }
+                    escaping = false;
+                    break;
+                case '}':
+                    if (braceDepth > 0 && !escaping) {
+                        buf.append(')');
+                        braceDepth--;
+                    } else if (escaping) {
+                        buf.append("\\}");
+                    } else {
+                        buf.append("}");
+                    }
+                    escaping = false;
+                    break;
+                case ',':
+                    if (braceDepth > 0 && !escaping) {
+                        buf.append('|');
+                    } else if (escaping) {
+                        buf.append("\\,");
+                    } else {
+                        buf.append(",");
+                    }
+                    break;
+                default:
+                    escaping = false;
+                    buf.append(c);
+            }
+        }
+        return buf.toString();
     }
 
     @CheckForNull
@@ -102,6 +189,69 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
 
     public boolean isCanMetrics() {
         return canMetrics;
+    }
+
+    public String getOrigins() {
+        return origins;
+    }
+
+    public boolean isOriginAllowed(String origin) {
+        if (originRegexs == null) {
+            // idempotent
+            if (StringUtils.equals("*", StringUtils.defaultIfBlank(origins, "*").trim())) {
+                originRegexs = new String[]{".*"};
+            } else {
+                List<String> regexs = new ArrayList<String>();
+                for (String pattern : StringUtils.split(origins, " ,")) {
+                    if (StringUtils.isBlank(pattern)) {
+                        continue;
+                    }
+                    String[] parts = StringUtils.split(pattern, ":");
+                    if (parts.length > 3) {
+                        regexs.add(globToRegex(parts[0]) + ":" + globToRegex(parts[1]) + ":" + globToRegex(parts[2]));
+                    } else if (parts.length == 3) {
+                        regexs.add(globToRegex(parts[0]) + ":" + globToRegex(parts[1]) + ":" + globToRegex(parts[2]));
+                    } else if (parts.length == 2) {
+                        if (parts[1].matches("^\\d{1,5}$")) {
+                            // it's a port
+                            regexs.add(".*:" + globToRegex(parts[0]) + ":" + parts[1]);
+                        } else {
+                            // it's a hostname
+                            regexs.add(globToRegex(parts[0]) + ":" + globToRegex(parts[1]) + "(:.*)?");
+                        }
+                    } else if (parts.length == 1) {
+                        // assume it matches the host name only
+                        regexs.add(".*:" + globToRegex(pattern) + "(:.*)?");
+                    }
+                }
+                originRegexs = regexs.toArray(new String[regexs.size()]);
+            }
+
+        }
+        for (String regex : originRegexs) {
+            if (origin.matches(regex)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * An extension point that allows for plugins to provide their own set of access keys.
+     */
+    public static interface Provider extends ExtensionPoint, Serializable {
+        @NonNull
+        List<MetricsAccessKey> getAccessKeys();
+
+        /**
+         * Returns the definition of the specific access key. Note that all entries in {@link #getAccessKeys()} must
+         * be returned by this method, but it may also return additional entries.
+         *
+         * @param accessKey the access key to retrieve.
+         * @return the access key.
+         */
+        @CheckForNull
+        MetricsAccessKey getAccessKey(String accessKey);
     }
 
     @Extension
@@ -162,7 +312,8 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             if (!accessKeySet.contains(accessKey)) {
                 // slow check
                 for (Provider p : Jenkins.getInstance().getExtensionList(Provider.class)) {
-                    if (p.isMayHaveOnDemandKeys() && p.getAccessKey(accessKey) != null) {
+                    if (((!(p instanceof AbstractProvider) || ((AbstractProvider) p).isMayHaveOnDemandKeys())
+                            && p.getAccessKey(accessKey) != null)) {
                         return;
                     }
                 }
@@ -235,6 +386,26 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             return null;
         }
 
+        public HttpResponse cors(@CheckForNull String accessKey, final HttpResponse resp) {
+            final MetricsAccessKey key = getAccessKey(accessKey);
+            return key == null ? resp : new HttpResponse() {
+                public void generateResponse(StaplerRequest req, StaplerResponse rsp, Object node)
+                        throws IOException, ServletException {
+                    String origin = req.getHeader("Origin");
+                    if (StringUtils.isNotBlank(origin) && key.isOriginAllowed(origin)) {
+                        rsp.addHeader("Access-Control-Allow-Origin", origin);
+                        rsp.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+                        rsp.addHeader("Access-Control-Allow-Headers", "Authorization");
+                        if ("OPTIONS".equals(req.getMethod())) {
+                            rsp.setStatus(200);
+                            return;
+                        }
+                    }
+                    resp.generateResponse(req, rsp, node);
+                }
+            };
+        }
+
         @Override
         public String getDisplayName() {
             return Messages.MetricsAccessKey_displayName();
@@ -261,7 +432,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     /**
      * An extension point that allows for plugins to provide their own set of access keys.
      */
-    public static abstract class Provider implements ExtensionPoint, Serializable {
+    public static abstract class AbstractProvider implements Provider {
 
         /**
          * Ensure consistent serialization.
@@ -293,9 +464,6 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             return mayHaveOnDemandKeys;
         }
 
-        @NonNull
-        public abstract List<MetricsAccessKey> getAccessKeys();
-
         /**
          * Returns the definition of the specific access key. Note that all entries in {@link #getAccessKeys()} must
          * be returned by this method, but it may also return additional entries.
@@ -315,7 +483,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
 
     }
 
-    public static class FixedListProviderImpl extends Provider {
+    public static class FixedListProviderImpl extends AbstractProvider {
 
         /**
          * Ensure consistent serialization.
@@ -334,7 +502,6 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         /**
          * {@inheritDoc}
          */
-        @Override
         @NonNull
         public List<MetricsAccessKey> getAccessKeys() {
             return accessKeys == null
