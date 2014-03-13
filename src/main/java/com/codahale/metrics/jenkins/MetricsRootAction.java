@@ -82,6 +82,13 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return mapper.writer();
     }
 
+    private static void requirePostOrCors(StaplerRequest req) throws IllegalAccessException {
+        if (!(req.getMethod().equals("POST") || (req.getMethod().equals("OPTIONS") && StringUtils
+                .isNotBlank(req.getHeader("Origin"))))) {
+            throw new IllegalAccessException("POST is required");
+        }
+    }
+
     public String getIconFileName() {
         return null;
     }
@@ -104,26 +111,28 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return currentUser;
     }
 
-    @RequirePOST
-    public HttpResponse doHealthcheck(@QueryParameter("key") String key) {
+    public HttpResponse doHealthcheck(StaplerRequest req, @QueryParameter("key") String key)
+            throws IllegalAccessException {
+        requirePostOrCors(req);
         Metrics.checkAccessKeyHealthCheck(key);
         return Metrics.cors(key, new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks()));
     }
 
-    @RequirePOST
-    public HttpResponse doMetrics(@QueryParameter("key") String key) {
+    public HttpResponse doMetrics(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+        requirePostOrCors(req);
         Metrics.checkAccessKeyMetrics(key);
         return Metrics.cors(key, new MetricsResponse(Metrics.metricRegistry()));
     }
 
-    @RequirePOST
-    public HttpResponse doPing(@QueryParameter("key") String key) {
+    public HttpResponse doPing(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+        requirePostOrCors(req);
         Metrics.checkAccessKeyPing(key);
         return Metrics.cors(key, new PingResponse());
     }
 
     @RequirePOST
-    public HttpResponse doThreads(@QueryParameter("key") String key) {
+    public HttpResponse doThreads(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+        requirePostOrCors(req);
         Metrics.checkAccessKeyThreadDump(key);
         return Metrics.cors(key, new ThreadDumpResponse(new ThreadDump(ManagementFactory.getThreadMXBean())));
     }
