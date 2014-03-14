@@ -395,7 +395,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
                     if (StringUtils.isNotBlank(origin) && key.isOriginAllowed(origin)) {
                         rsp.addHeader("Access-Control-Allow-Origin", origin);
                         rsp.addHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-                        rsp.addHeader("Access-Control-Allow-Headers", "Authorization");
+                        rsp.addHeader("Access-Control-Allow-Headers", "Accept, Authorization");
                         if ("OPTIONS".equals(req.getMethod())) {
                             rsp.setStatus(200);
                             return;
