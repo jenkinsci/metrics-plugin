@@ -95,12 +95,11 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
     }
 
-    @SuppressWarnings("unchecked")
     @CheckForNull
     private static String getKeyFromAuthorizationHeader(@NonNull StaplerRequest req) throws IllegalAccessException {
-        for (String s : Collections.<String>list(req.getHeaders("Authorization"))) {
-            if (s.startsWith("Jenkins-Metrics-Key ")) {
-                return Util.fixEmptyAndTrim(s.substring("Jenkins-Metrics-Key ".length()));
+        for (Object o : Collections.list(req.getHeaders("Authorization"))) {
+            if (o instanceof String && ((String)o).startsWith("Jenkins-Metrics-Key ")) {
+                return Util.fixEmptyAndTrim(((String)o).substring("Jenkins-Metrics-Key ".length()));
             }
         }
         return null;
