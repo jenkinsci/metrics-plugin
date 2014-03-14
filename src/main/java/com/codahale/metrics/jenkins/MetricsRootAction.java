@@ -31,6 +31,8 @@ import com.codahale.metrics.json.MetricsModule;
 import com.codahale.metrics.jvm.ThreadDump;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import edu.umd.cs.findbugs.annotations.CheckForNull;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.UnprotectedRootAction;
@@ -50,6 +52,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.lang.management.ManagementFactory;
+import java.util.Collections;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
@@ -82,11 +85,25 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return mapper.writer();
     }
 
-    private static void requirePostOrCors(StaplerRequest req) throws IllegalAccessException {
-        if (!(req.getMethod().equals("POST") || (req.getMethod().equals("OPTIONS") && StringUtils
-                .isNotBlank(req.getHeader("Origin"))))) {
+    @SuppressWarnings("unchecked")
+    private static void requireCorrectMethod(@NonNull StaplerRequest req) throws IllegalAccessException {
+        if (!(req.getMethod().equals("POST")
+                || (req.getMethod().equals("OPTIONS") && StringUtils.isNotBlank(req.getHeader("Origin")))
+                || (req.getMethod().equals("GET") && getKeyFromAuthorizationHeader(req) != null)
+        )) {
             throw new IllegalAccessException("POST is required");
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    @CheckForNull
+    private static String getKeyFromAuthorizationHeader(@NonNull StaplerRequest req) throws IllegalAccessException {
+        for (String s : Collections.<String>list(req.getHeaders("Authorization"))) {
+            if (s.startsWith("Jenkins-Metrics-Key ")) {
+                return Util.fixEmptyAndTrim(s.substring("Jenkins-Metrics-Key ".length()));
+            }
+        }
+        return null;
     }
 
     public String getIconFileName() {
@@ -113,26 +130,38 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
     public HttpResponse doHealthcheck(StaplerRequest req, @QueryParameter("key") String key)
             throws IllegalAccessException {
-        requirePostOrCors(req);
+        requireCorrectMethod(req);
+        if (StringUtils.isBlank(key)) {
+            key = getKeyFromAuthorizationHeader(req);
+        }
         Metrics.checkAccessKeyHealthCheck(key);
         return Metrics.cors(key, new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks()));
     }
 
     public HttpResponse doMetrics(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
-        requirePostOrCors(req);
+        requireCorrectMethod(req);
+        if (StringUtils.isBlank(key)) {
+            key = getKeyFromAuthorizationHeader(req);
+        }
         Metrics.checkAccessKeyMetrics(key);
         return Metrics.cors(key, new MetricsResponse(Metrics.metricRegistry()));
     }
 
     public HttpResponse doPing(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
-        requirePostOrCors(req);
+        requireCorrectMethod(req);
+        if (StringUtils.isBlank(key)) {
+            key = getKeyFromAuthorizationHeader(req);
+        }
         Metrics.checkAccessKeyPing(key);
         return Metrics.cors(key, new PingResponse());
     }
 
     @RequirePOST
     public HttpResponse doThreads(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
-        requirePostOrCors(req);
+        requireCorrectMethod(req);
+        if (StringUtils.isBlank(key)) {
+            key = getKeyFromAuthorizationHeader(req);
+        }
         Metrics.checkAccessKeyThreadDump(key);
         return Metrics.cors(key, new ThreadDumpResponse(new ThreadDump(ManagementFactory.getThreadMXBean())));
     }
