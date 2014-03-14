@@ -237,6 +237,70 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     }
 
     /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+
+        MetricsAccessKey that = (MetricsAccessKey) o;
+
+        if (canHealthCheck != that.canHealthCheck) {
+            return false;
+        }
+        if (canMetrics != that.canMetrics) {
+            return false;
+        }
+        if (canPing != that.canPing) {
+            return false;
+        }
+        if (canThreadDump != that.canThreadDump) {
+            return false;
+        }
+        if (description != null ? !description.equals(that.description) : that.description != null) {
+            return false;
+        }
+        if (!key.equals(that.key)) {
+            return false;
+        }
+        if (origins != null ? !origins.equals(that.origins) : that.origins != null) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public int hashCode() {
+        return key.hashCode();
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("MetricsAccessKey{");
+        sb.append("key='").append(key).append('\'');
+        sb.append(", description='").append(description).append('\'');
+        sb.append(", canPing=").append(canPing);
+        sb.append(", canHealthCheck=").append(canHealthCheck);
+        sb.append(", canMetrics=").append(canMetrics);
+        sb.append(", canThreadDump=").append(canThreadDump);
+        sb.append(", origins='").append(origins).append('\'');
+        sb.append('}');
+        return sb.toString();
+    }
+
+    /**
      * An extension point that allows for plugins to provide their own set of access keys.
      */
     public static interface Provider extends ExtensionPoint, Serializable {
@@ -483,6 +547,9 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
 
     }
 
+    /**
+     * A provider that is a simple fixed list of keys.
+     */
     public static class FixedListProviderImpl extends AbstractProvider {
 
         /**
@@ -507,6 +574,46 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             return accessKeys == null
                     ? Collections.<MetricsAccessKey>emptyList()
                     : Collections.unmodifiableList(accessKeys);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("FixedListProviderImpl{");
+            sb.append("accessKeys=").append(accessKeys);
+            sb.append('}');
+            return sb.toString();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            FixedListProviderImpl that = (FixedListProviderImpl) o;
+
+            if (accessKeys != null ? !accessKeys.equals(that.accessKeys) : that.accessKeys != null) {
+                return false;
+            }
+
+            return true;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public int hashCode() {
+            return accessKeys != null ? accessKeys.hashCode() : 0;
         }
     }
 }
