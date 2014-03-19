@@ -38,7 +38,7 @@
 
   <name>Metrics Plugin</name>
   <description>
-    This plugin exposes the Codahale Metrics API to Jenkins plugins.
+    This plugin exposes the Metrics API to Jenkins plugins.
   </description>
   <url>http://wiki.jenkins-ci.org/display/JENKINS/Metrics+Plugin</url>
   <licenses>
@@ -69,7 +69,6 @@
 
   <properties>
     <metrics.version>3.0.2</metrics.version>
-    <git.provider>git</git.provider>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

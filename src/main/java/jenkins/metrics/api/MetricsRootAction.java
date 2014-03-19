@@ -121,7 +121,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
     }
 
     public String getUrlName() {
-        return "codahale-metrics";
+        return "metrics";
     }
 
     public Object getDynamic(final String key) {
