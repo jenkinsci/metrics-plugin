@@ -56,9 +56,12 @@ public class MetricsFilter implements Filter {
     private static final int OK = 200;
     private static final int CREATED = 201;
     private static final int NO_CONTENT = 204;
+    private static final int NOT_MODIFIED = 304;
     private static final int BAD_REQUEST = 400;
+    private static final int FORBIDDEN = 403;
     private static final int NOT_FOUND = 404;
     private static final int SERVER_ERROR = 500;
+    private static final int SERVICE_UNAVAILABLE = 503;
     private final String otherMetricName;
     private final Map<Integer, String> meterNamesByStatusCode;
     // initialized after call of init method
@@ -76,10 +79,13 @@ public class MetricsFilter implements Filter {
         final Map<Integer, String> meterNamesByStatusCode = new HashMap<Integer, String>(6);
         meterNamesByStatusCode.put(OK, NAME_PREFIX + "ok");
         meterNamesByStatusCode.put(CREATED, NAME_PREFIX + "created");
+        meterNamesByStatusCode.put(NOT_MODIFIED, NAME_PREFIX + "notModified");
         meterNamesByStatusCode.put(NO_CONTENT, NAME_PREFIX + "noContent");
         meterNamesByStatusCode.put(BAD_REQUEST, NAME_PREFIX + "badRequest");
+        meterNamesByStatusCode.put(FORBIDDEN, NAME_PREFIX + "forbidden");
         meterNamesByStatusCode.put(NOT_FOUND, NAME_PREFIX + "notFound");
         meterNamesByStatusCode.put(SERVER_ERROR, NAME_PREFIX + "serverError");
+        meterNamesByStatusCode.put(SERVICE_UNAVAILABLE, NAME_PREFIX + "serviceUnavailable");
         return meterNamesByStatusCode;
     }
 
