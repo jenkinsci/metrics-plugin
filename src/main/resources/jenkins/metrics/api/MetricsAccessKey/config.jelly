@@ -23,7 +23,7 @@
  -->
 <j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form" xmlns:l="/lib/layout" xmlns:st="jelly:stapler">
   <f:entry title="${%Key}" field="key">
-    <input class="setting-input codahale-metrics-access-key"
+    <input class="setting-input metrics-access-key"
            name="_.key"
            value="${instance.key}"
            type="text"
