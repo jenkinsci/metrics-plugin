@@ -571,7 +571,6 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             if (context == null) {
                 return;
             }
-            ;
             TimeInQueueAction action;
             synchronized (actions) {
                 action = actions.remove(context);
