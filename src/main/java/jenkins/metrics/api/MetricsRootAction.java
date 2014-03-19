@@ -27,6 +27,8 @@ package jenkins.metrics.api;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.health.HealthCheck;
 import com.fasterxml.jackson.databind.JsonNode;
+import edu.umd.cs.findbugs.annotations.*;
+import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 import jenkins.metrics.util.NameRewriterMetricRegistry;
 import com.codahale.metrics.json.HealthCheckModule;
 import com.codahale.metrics.json.MetricsModule;
@@ -36,8 +38,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
-import edu.umd.cs.findbugs.annotations.CheckForNull;
-import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.PeriodicWork;
@@ -507,6 +507,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
             bucket.add(new Sample(System.currentTimeMillis(), baos.toByteArray()));
         }
 
+        @SuppressWarnings(value = "EI_EXPOSE_REP2")
         public static class Sample {
             private final long t;
             private final byte[] v;
