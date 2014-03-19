@@ -22,10 +22,9 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins;
+package jenkins.metrics.api;
 
-import com.codahale.metrics.Metric;
-import com.codahale.metrics.MetricSet;
+import com.codahale.metrics.health.HealthCheck;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.ExtensionPoint;
 
@@ -34,40 +33,35 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Provides metrics to register.
+ * Provides {@link HealthCheck} instances to register.
  */
-public abstract class MetricProvider implements ExtensionPoint {
-    protected static Map.Entry<String, Metric> metric(String name, Metric metric) {
-        return metric == null ? null : new StringImmutableEntry<Metric>(name, metric);
+public abstract class HealthCheckProvider implements ExtensionPoint {
+
+    protected static Map.Entry<String, HealthCheck> check(String name, HealthCheck metric) {
+        return new StringImmutableEntry<HealthCheck>(name, metric);
     }
 
-    protected static MetricSet metrics(Map.Entry<String, Metric>... metrics) {
-        final Map<String, Metric> result = new LinkedHashMap<String, Metric>(metrics.length);
-        for (Map.Entry<String, Metric> metric : metrics) {
-            if (metric != null && metric.getValue() != null) {
+    protected static Map.Entry<String, HealthCheck> check(String name, HealthCheck metric, boolean enabled) {
+        return new StringImmutableEntry<HealthCheck>(name, enabled ? metric : null);
+    }
+
+    protected static Map<String, HealthCheck> checks(Map.Entry<String, HealthCheck>... metrics) {
+        final Map<String, HealthCheck> result = new LinkedHashMap<String, HealthCheck>(metrics.length);
+        for (Map.Entry<String, HealthCheck> metric : metrics) {
+            if (metric.getValue() != null) {
                 result.put(metric.getKey(), metric.getValue());
             }
         }
-        return new FixedMetricSet(result);
+        return Collections.unmodifiableMap(result);
     }
 
     /**
-     * Returns the set of metrics to register.
+     * A map of {@link HealthCheck} instances keyed by name.
      *
-     * @return the set of metrics to register.
+     * @return a map of {@link HealthCheck} instances keyed by name.
      */
     @NonNull
-    public abstract MetricSet getMetricSet();
+    public abstract Map<String, HealthCheck> getHealthChecks();
 
-    private static class FixedMetricSet implements MetricSet {
-        private final Map<String, Metric> result;
 
-        public FixedMetricSet(Map<String, Metric> result) {
-            this.result = Collections.unmodifiableMap(result);
-        }
-
-        public Map<String, Metric> getMetrics() {
-            return result;
-        }
-    }
 }

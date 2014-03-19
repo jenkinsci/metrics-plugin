@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins;
+package jenkins.metrics.api;
 
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;

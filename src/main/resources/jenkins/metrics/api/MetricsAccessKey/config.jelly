@@ -38,7 +38,7 @@
                 for( var i=0; i &lt; 64; i++ )
                     text += possible.charAt(Math.floor(Math.random() * possible.length));
         fld.value = text;
-    })(this); return false;" class="submit-button" />
+    })(this); return false;" class="submit-button"/>
   </f:entry>
   <f:entry title="${%Description}" field="description">
     <f:textbox/>
@@ -53,8 +53,8 @@
     <f:textbox default="*"/>
   </f:entry>
   <f:entry title="">
-     <div align="right">
-       <f:repeatableDeleteButton />
-     </div>
-   </f:entry>
+    <div align="right">
+      <f:repeatableDeleteButton/>
+    </div>
+  </f:entry>
 </j:jelly>

@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins.impl;
+package jenkins.metrics.impl;
 
 import hudson.Util;
 import hudson.model.Run;

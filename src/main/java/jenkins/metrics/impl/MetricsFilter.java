@@ -22,13 +22,13 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins.impl;
+package jenkins.metrics.impl;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.Timer;
-import com.codahale.metrics.jenkins.Metrics;
+import jenkins.metrics.api.Metrics;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;

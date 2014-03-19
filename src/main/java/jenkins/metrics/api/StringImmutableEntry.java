@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins;
+package jenkins.metrics.api;
 
 import java.util.Map;
 

@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins;
+package jenkins.metrics.util;
 
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.codahale.metrics.Gauge;
@@ -33,6 +33,7 @@ import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Reservoir;
 import hudson.Extension;
 import hudson.model.PeriodicWork;
+import jenkins.metrics.api.Metrics;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

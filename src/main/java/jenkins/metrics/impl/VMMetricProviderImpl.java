@@ -22,13 +22,13 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins.impl;
+package jenkins.metrics.impl;
 
 import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
-import com.codahale.metrics.jenkins.MetricProvider;
+import jenkins.metrics.api.MetricProvider;
 import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;

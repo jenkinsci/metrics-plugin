@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins;
+package jenkins.metrics.util;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;

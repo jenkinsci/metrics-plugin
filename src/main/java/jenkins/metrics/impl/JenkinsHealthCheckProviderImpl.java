@@ -22,11 +22,11 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins.impl;
+package jenkins.metrics.impl;
 
 import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.jvm.ThreadDeadlockHealthCheck;
-import com.codahale.metrics.jenkins.HealthCheckProvider;
+import jenkins.metrics.api.HealthCheckProvider;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.PluginManager;

@@ -1,4 +1,4 @@
-# Codahale Metrics Plugin
+# Metrics Plugin
 
 This plugin exposes the [Codahale Metrics](http://metrics.codahale.com/) API to Jenkins plugins.
 
@@ -28,4 +28,4 @@ To test in a local Jenkins instance
 
     mvn hpi:run
 
-  [wiki]: http://wiki.jenkins-ci.org/display/JENKINS/Codahale+Metrics+Plugin
+  [wiki]: http://wiki.jenkins-ci.org/display/JENKINS/Metrics+Plugin

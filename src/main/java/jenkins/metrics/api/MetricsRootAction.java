@@ -22,21 +22,28 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins;
+package jenkins.metrics.api;
 
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.health.HealthCheck;
+import jenkins.metrics.util.NameRewriterMetricRegistry;
 import com.codahale.metrics.json.HealthCheckModule;
 import com.codahale.metrics.json.MetricsModule;
 import com.codahale.metrics.jvm.ThreadDump;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.Util;
+import hudson.model.PeriodicWork;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
+import hudson.util.IOUtils;
+import jenkins.metrics.util.ExponentialLeakyBucket;
 import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.HttpResponse;
@@ -48,14 +55,12 @@ import org.kohsuke.stapler.interceptor.RequirePOST;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.lang.management.ManagementFactory;
-import java.util.Collections;
-import java.util.Map;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * @author Stephen Connolly
@@ -63,10 +68,12 @@ import java.util.concurrent.TimeUnit;
 @Extension
 public class MetricsRootAction implements UnprotectedRootAction {
 
+    public static final TimeUnit RATE_UNIT = TimeUnit.MINUTES;
+    public static final TimeUnit DURATION_UNIT = TimeUnit.SECONDS;
     private final Pseudoservlet currentUser = new CurrentUserPseudoservlet();
     private final ObjectMapper healthCheckMapper = new ObjectMapper().registerModule(new HealthCheckModule());
     private final ObjectMapper metricsMapper =
-            new ObjectMapper().registerModule(new MetricsModule(TimeUnit.MINUTES, TimeUnit.SECONDS, true));
+            new ObjectMapper().registerModule(new MetricsModule(RATE_UNIT, DURATION_UNIT, true));
 
     private static boolean isAllHealthy(Map<String, HealthCheck.Result> results) {
         for (HealthCheck.Result result : results.values()) {
@@ -98,8 +105,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
     @CheckForNull
     private static String getKeyFromAuthorizationHeader(@NonNull StaplerRequest req) throws IllegalAccessException {
         for (Object o : Collections.list(req.getHeaders("Authorization"))) {
-            if (o instanceof String && ((String)o).startsWith("Jenkins-Metrics-Key ")) {
-                return Util.fixEmptyAndTrim(((String)o).substring("Jenkins-Metrics-Key ".length()));
+            if (o instanceof String && ((String) o).startsWith("Jenkins-Metrics-Key ")) {
+                return Util.fixEmptyAndTrim(((String) o).substring("Jenkins-Metrics-Key ".length()));
             }
         }
         return null;
@@ -144,6 +151,15 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
         Metrics.checkAccessKeyMetrics(key);
         return Metrics.cors(key, new MetricsResponse(Metrics.metricRegistry()));
+    }
+
+    public HttpResponse doMetricsHistory(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+        requireCorrectMethod(req);
+        if (StringUtils.isBlank(key)) {
+            key = getKeyFromAuthorizationHeader(req);
+        }
+        Metrics.checkAccessKeyMetrics(key);
+        return Metrics.cors(key, new MetricsHistoryResponse());
     }
 
     public HttpResponse doPing(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
@@ -217,6 +233,10 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
         public HttpResponse doMetrics() {
             return new MetricsResponse(Metrics.metricRegistry());
+        }
+
+        public HttpResponse doMetricsHistory() {
+            return new MetricsHistoryResponse();
         }
 
         public HttpResponse doPing() {
@@ -332,6 +352,38 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
     }
 
+    private class MetricsHistoryResponse implements HttpResponse {
+        private static final String JSONP_CONTENT_TYPE = "text/javascript";
+        private static final String JSON_CONTENT_TYPE = "application/json";
+        private static final String CACHE_CONTROL = "Cache-Control";
+        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
+
+        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+                ServletException {
+            boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
+            String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
+            resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            resp.setContentType(jsonp ? JSONP_CONTENT_TYPE : JSON_CONTENT_TYPE);
+            resp.setStatus(HttpServletResponse.SC_OK);
+
+            final OutputStream output = resp.getOutputStream();
+            try {
+                if (jsonp) {
+                    output.write(jsonpCallback.getBytes("US-ASCII"));
+                    output.write("(".getBytes("US-ASCII"));
+                }
+                Sampler sampler = Jenkins.getInstance().getExtensionList(PeriodicWork.class).get(Sampler.class);
+                Map<Date, Object> sample = sampler == null ? null : sampler.sample();
+                output.write(getWriter(metricsMapper, req).writeValueAsBytes(sample));
+                if (jsonp) {
+                    output.write(");".getBytes("US-ASCII"));
+                }
+            } finally {
+                output.close();
+            }
+        }
+    }
+
     public class CurrentUserPseudoservlet extends Pseudoservlet {
         @Override
         public HttpResponse doHealthcheck() {
@@ -349,6 +401,12 @@ public class MetricsRootAction implements UnprotectedRootAction {
         public HttpResponse doMetrics() {
             Jenkins.getInstance().checkPermission(Metrics.VIEW);
             return super.doMetrics();
+        }
+
+        @Override
+        public HttpResponse doMetricsHistory() {
+            Jenkins.getInstance().checkPermission(Metrics.VIEW);
+            return super.doMetricsHistory();
         }
 
         @Override
@@ -384,6 +442,12 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
 
         @Override
+        public HttpResponse doMetricsHistory() {
+            Metrics.checkAccessKeyMetrics(key);
+            return Metrics.cors(key, super.doMetricsHistory());
+        }
+
+        @Override
         public HttpResponse doPing() {
             Metrics.checkAccessKeyPing(key);
             return Metrics.cors(key, super.doPing());
@@ -394,5 +458,78 @@ public class MetricsRootAction implements UnprotectedRootAction {
             Metrics.checkAccessKeyThreadDump(key);
             return Metrics.cors(key, super.doThreads());
         }
+    }
+
+    @Extension
+    public static class Sampler extends PeriodicWork {
+
+        private final ExponentialLeakyBucket<Sample> bucket = new ExponentialLeakyBucket<Sample>(128, 0.005);
+        private final ObjectMapper mapper;
+
+        public Sampler() {
+            mapper = new ObjectMapper();
+            mapper.registerModule(new MetricsModule(RATE_UNIT, DURATION_UNIT, false));
+        }
+
+        public Map<Date, Object> sample() {
+            Map<Date, Object> result = new TreeMap<Date, Object>();
+            ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
+            for (Sample s : bucket.values()) {
+                GZIPInputStream gzis = null;
+                try {
+                    gzis = new GZIPInputStream(new ByteArrayInputStream(s.getValue()));
+                    result.put(s.getTime(), reader.readTree(gzis));
+                } catch (JsonProcessingException e) {
+                    throw new RuntimeException(e);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    IOUtils.closeQuietly(gzis);
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public long getRecurrencePeriod() {
+            return TimeUnit.SECONDS.toMillis(30);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            ObjectWriter writer = mapper.writer();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream(8192);
+            try {
+                GZIPOutputStream gzos = null;
+                try {
+                    gzos = new GZIPOutputStream(baos);
+                    writer.writeValue(gzos, Metrics.metricRegistry());
+                } finally {
+                    IOUtils.closeQuietly(gzos);
+                }
+            } finally {
+                baos.close();
+            }
+            bucket.add(new Sample(System.currentTimeMillis(), baos.toByteArray()));
+        }
+
+        public static class Sample {
+            private final long t;
+            private final byte[] v;
+
+            public Sample(long t, byte[] v) {
+                this.t = t;
+                this.v = v;
+            }
+
+            public Date getTime() {
+                return new Date(t);
+            }
+
+            public byte[] getValue() {
+                return v;
+            }
+        }
+
     }
 }

@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins;
+package jenkins.metrics.api;
 
 import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
@@ -32,7 +32,7 @@ import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheckRegistry;
-import com.codahale.metrics.jenkins.impl.MetricsFilter;
+import jenkins.metrics.impl.MetricsFilter;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
@@ -325,10 +325,10 @@ public class Metrics extends Plugin {
                     metric(name("jenkins", "health-check", "duration"), c.getHealthCheckDuration()),
                     metric(name("jenkins", "health-check", "count"), c.getHealthCheckCount()),
                     metric(name("jenkins", "health-check", "score"), c.getHealthCheckScore()),
-                    metric(name("jenkins", "health-check", "inverse-score"), new DerivativeGauge<Double,Double>(c.getHealthCheckScore()) {
+                    metric(name("jenkins", "health-check", "inverse-score"), new DerivativeGauge<Double, Double>(c.getHealthCheckScore()) {
                         @Override
                         protected Double transform(Double value) {
-                            return value == null ? null:1.0-value;
+                            return value == null ? null : 1.0 - value;
                         }
                     })
             );

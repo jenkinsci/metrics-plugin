@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-package com.codahale.metrics.jenkins.impl;
+package jenkins.metrics.impl;
 
 import com.codahale.metrics.CachedGauge;
 import com.codahale.metrics.DerivativeGauge;
@@ -32,9 +32,9 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
-import com.codahale.metrics.jenkins.AutoSamplingHistogram;
-import com.codahale.metrics.jenkins.MetricProvider;
-import com.codahale.metrics.jenkins.Metrics;
+import jenkins.metrics.util.AutoSamplingHistogram;
+import jenkins.metrics.api.MetricProvider;
+import jenkins.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.PluginWrapper;
@@ -372,13 +372,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 getOrCreateTimer(computer);
             }
             MetricRegistry metricRegistry = Metrics.metricRegistry();
-                for (Map.Entry<Computer, Timer> entry : computerBuildDurations.entrySet()) {
-                    if (forRetention.contains(entry.getKey())) {
-                        continue;
-                    }
-                    // purge dead nodes
-                    metricRegistry.remove(name("jenkins", "node", entry.getKey().getName(), "builds"));
+            for (Map.Entry<Computer, Timer> entry : computerBuildDurations.entrySet()) {
+                if (forRetention.contains(entry.getKey())) {
+                    continue;
                 }
+                // purge dead nodes
+                metricRegistry.remove(name("jenkins", "node", entry.getKey().getName(), "builds"));
+            }
             computerBuildDurations.keySet().retainAll(forRetention);
         }
 
