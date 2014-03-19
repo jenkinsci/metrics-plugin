@@ -26,6 +26,7 @@ package jenkins.metrics.api;
 
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.health.HealthCheck;
+import com.fasterxml.jackson.databind.JsonNode;
 import jenkins.metrics.util.NameRewriterMetricRegistry;
 import com.codahale.metrics.json.HealthCheckModule;
 import com.codahale.metrics.json.MetricsModule;
@@ -475,16 +476,9 @@ public class MetricsRootAction implements UnprotectedRootAction {
             Map<Date, Object> result = new TreeMap<Date, Object>();
             ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
             for (Sample s : bucket.values()) {
-                GZIPInputStream gzis = null;
-                try {
-                    gzis = new GZIPInputStream(new ByteArrayInputStream(s.getValue()));
-                    result.put(s.getTime(), reader.readTree(gzis));
-                } catch (JsonProcessingException e) {
-                    throw new RuntimeException(e);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                } finally {
-                    IOUtils.closeQuietly(gzis);
+                JsonNode value = s.getValue(reader);
+                if (value != null) {
+                    result.put(s.getTime(), value);
                 }
             }
             return result;
@@ -526,8 +520,18 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 return new Date(t);
             }
 
-            public byte[] getValue() {
-                return v;
+            public JsonNode getValue(ObjectReader reader) {
+                GZIPInputStream gzis = null;
+                try {
+                    gzis = new GZIPInputStream(new ByteArrayInputStream(v));
+                    return reader.readTree(gzis);
+                } catch (JsonProcessingException e) {
+                    return null;
+                } catch (IOException e) {
+                    return null;
+                } finally {
+                    IOUtils.closeQuietly(gzis);
+                }
             }
         }
 
