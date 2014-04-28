@@ -459,7 +459,7 @@ public class Metrics extends Plugin {
                     if (unhealthy == null) {
                         unhealthy = new TreeSet<String>();
                     }
-                    unhealthy.add(e.getKey());
+                    unhealthy.add(e.getKey() + " : " + e.getValue().getMessage());
                 }
             }
             score = total / ((double) count);
