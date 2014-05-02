@@ -464,7 +464,7 @@ public class Metrics extends Plugin {
             }
             score = total / ((double) count);
             if (unhealthy != null) {
-                LOGGER.log(Level.WARNING, "Some health checks are reporting as unhealthy: {0}", unhealthy);
+                LOGGER.log(Level.FINE, "Some health checks are reporting as unhealthy: {0}", unhealthy);
             }
         }
     }
