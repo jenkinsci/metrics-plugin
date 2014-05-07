@@ -354,6 +354,7 @@ public class Metrics extends Plugin {
         };
         private Future<?> future;
         private volatile double score = 1.0;
+        private volatile Set<String> lastUnhealthy = null;
 
         public HealthChecker() {
             super();
@@ -448,6 +449,7 @@ public class Metrics extends Plugin {
             }
             listener.getLogger().println("Health check results at" + new Date() + ":");
             Set<String> unhealthy = null;
+            Set<String> unhealthyName = null;
             int count = 0;
             int total = 0;
             for (Map.Entry<String, HealthCheck.Result> e : results.entrySet()) {
@@ -458,13 +460,26 @@ public class Metrics extends Plugin {
                 } else {
                     if (unhealthy == null) {
                         unhealthy = new TreeSet<String>();
+                        unhealthyName = new TreeSet<String>();
                     }
                     unhealthy.add(e.getKey() + " : " + e.getValue().getMessage());
+                    unhealthyName.add(e.getKey());
                 }
             }
             score = total / ((double) count);
+            Set<String> lastUnhealthy = this.lastUnhealthy;
+            this.lastUnhealthy = unhealthyName;
             if (unhealthy != null) {
-                LOGGER.log(Level.FINE, "Some health checks are reporting as unhealthy: {0}", unhealthy);
+                if (lastUnhealthy == null || lastUnhealthy.size() <= unhealthyName.size()) {
+                    LOGGER.log(Level.WARNING, "Some health checks are reporting as unhealthy: {0}", unhealthy);
+                } else if (lastUnhealthy.equals(unhealthyName)) {
+                    LOGGER.log(Level.FINE, "Some health checks are reporting as unhealthy: {0}", unhealthy);
+                } else {
+                    LOGGER.log(Level.INFO, "{0} fewer health checks are reporting as unhealthy: {1}",
+                            new Object[]{lastUnhealthy.size() - unhealthyName.size(), unhealthy});
+                }
+            } else if (lastUnhealthy != null) {
+                LOGGER.log(Level.INFO, "All health checks are reporting as healthy");
             }
         }
     }
