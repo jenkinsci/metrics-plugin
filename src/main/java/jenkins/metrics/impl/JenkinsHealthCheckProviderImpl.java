@@ -57,7 +57,13 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                         if (failedPlugins.isEmpty()) {
                             return Result.healthy("No failed plugins");
                         }
-                        return Result.unhealthy("There are {0} failed plugins", failedPlugins.size());
+                        StringBuilder failedNames = new StringBuilder();
+                        boolean first = true;
+                        for (PluginManager.FailedPlugin p: failedPlugins) {
+                            if (first) first = false; else failedNames.append("; ");
+                            failedNames.append(p.name);
+                        }
+                        return Result.unhealthy("There are %s failed plugins: %s", failedPlugins.size(), failedNames);
                     }
                 }),
                 check("thread-deadlock", new ThreadDeadlockHealthCheck()),
@@ -70,8 +76,8 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                         }
                         for (Computer c : Jenkins.getInstance().getComputers()) {
                             DiskSpaceMonitorDescriptor.DiskSpace freeSpace = m.getFreeSpace(c);
-                            if (m.getThresholdBytes() > freeSpace.size) {
-                                return Result.unhealthy("Only {0} Gb free on {1}", freeSpace.getGbLeft(), c.getName());
+                            if (freeSpace != null && m.getThresholdBytes() > freeSpace.size) {
+                                return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(), c.getName());
                             }
                         }
                         return Result.healthy();
@@ -86,8 +92,8 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                         }
                         for (Computer c : Jenkins.getInstance().getComputers()) {
                             DiskSpaceMonitorDescriptor.DiskSpace freeSpace = m.getFreeSpace(c);
-                            if (m.getThresholdBytes() > freeSpace.size) {
-                                return Result.unhealthy("Only {0} Gb free on {1}", freeSpace.getGbLeft(), c.getName());
+                            if (freeSpace != null && m.getThresholdBytes() > freeSpace.size) {
+                                return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(), c.getName());
                             }
                         }
                         return Result.healthy();
