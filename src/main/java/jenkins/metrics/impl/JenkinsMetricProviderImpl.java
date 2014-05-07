@@ -255,6 +255,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                 return value.getNodeOnline();
                             }
                         })).toMetricSet()),
+                metric(name("jenkins", "node", "offline"),
+                        new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                            @Override
+                            protected Integer transform(NodeStats value) {
+                                return value.getNodeOffline();
+                            }
+                        }).toMetricSet()),
                 metric(name("jenkins", "executor", "count"), (jenkinsExecutorTotalCount =
                         new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
                             @Override
@@ -269,6 +276,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                 return value.getExecutorBuilding();
                             }
                         })).toMetricSet()),
+                metric(name("jenkins", "executor", "free"),
+                        new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
+                            @Override
+                            protected Integer transform(NodeStats value) {
+                                return value.getExecutorAvailable();
+                            }
+                        }).toMetricSet()),
                 metric(name("jenkins", "job", "scheduled"), (jenkinsJobScheduleRate = new Meter())),
                 metric(name("jenkins", "job", "count"),
                         new AutoSamplingHistogram(new CachedGauge<Integer>(5, TimeUnit.MINUTES) {
