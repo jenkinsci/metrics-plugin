@@ -470,7 +470,7 @@ public class Metrics extends Plugin {
             Set<String> lastUnhealthy = this.lastUnhealthy;
             this.lastUnhealthy = unhealthyName;
             if (unhealthy != null) {
-                if (lastUnhealthy == null || lastUnhealthy.size() <= unhealthyName.size()) {
+                if (lastUnhealthy == null || lastUnhealthy.size() < unhealthyName.size() || !lastUnhealthy.equals(unhealthyName)) {
                     LOGGER.log(Level.WARNING, "Some health checks are reporting as unhealthy: {0}", unhealthy);
                 } else if (lastUnhealthy.equals(unhealthyName)) {
                     LOGGER.log(Level.FINE, "Some health checks are reporting as unhealthy: {0}", unhealthy);
