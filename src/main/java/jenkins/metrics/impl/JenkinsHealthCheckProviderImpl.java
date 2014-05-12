@@ -77,7 +77,9 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                         for (Computer c : Jenkins.getInstance().getComputers()) {
                             DiskSpaceMonitorDescriptor.DiskSpace freeSpace = m.getFreeSpace(c);
                             if (freeSpace != null && m.getThresholdBytes() > freeSpace.size) {
-                                return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(), c.getName());
+                                return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(),
+                                        c.getNode() instanceof Jenkins
+                                                ? Jenkins.getInstance().getDisplayName() : c.getName());
                             }
                         }
                         return Result.healthy();
@@ -93,7 +95,9 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                         for (Computer c : Jenkins.getInstance().getComputers()) {
                             DiskSpaceMonitorDescriptor.DiskSpace freeSpace = m.getFreeSpace(c);
                             if (freeSpace != null && m.getThresholdBytes() > freeSpace.size) {
-                                return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(), c.getName());
+                                return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(),
+                                        c.getNode() instanceof Jenkins
+                                                ? Jenkins.getInstance().getDisplayName() : c.getName());
                             }
                         }
                         return Result.healthy();
