@@ -32,6 +32,8 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
+import hudson.model.Item;
+import hudson.model.ItemGroup;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.metrics.api.MetricProvider;
 import jenkins.metrics.api.Metrics;
@@ -62,6 +64,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Stack;
 import java.util.WeakHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -290,7 +293,21 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             protected Integer loadValue() {
                                 SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
                                 try {
-                                    return Jenkins.getInstance().getAllItems(Job.class).size();
+                                    int count = 0;
+                                    Stack<ItemGroup> q = new Stack<ItemGroup>();
+                                    q.push(Jenkins.getInstance());
+                                    while (!q.isEmpty()) {
+                                        ItemGroup<?> parent = q.pop();
+                                        for (Item i : parent.getItems()) {
+                                            if (i instanceof Job) {
+                                                count++;
+                                            }
+                                            if (i instanceof ItemGroup) {
+                                                q.push((ItemGroup) i);
+                                            }
+                                        }
+                                    }
+                                    return count;
                                 } finally {
                                     SecurityContextHolder.setContext(oldContext);
                                 }
