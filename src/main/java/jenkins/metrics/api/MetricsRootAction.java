@@ -26,18 +26,19 @@ package jenkins.metrics.api;
 
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.health.HealthCheck;
-import com.fasterxml.jackson.databind.JsonNode;
-import edu.umd.cs.findbugs.annotations.*;
-import edu.umd.cs.findbugs.annotations.SuppressWarnings;
-import jenkins.metrics.util.NameRewriterMetricRegistry;
 import com.codahale.metrics.json.HealthCheckModule;
 import com.codahale.metrics.json.MetricsModule;
 import com.codahale.metrics.jvm.ThreadDump;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import edu.umd.cs.findbugs.annotations.CheckForNull;
+import edu.umd.cs.findbugs.annotations.NonNull;
+import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.PeriodicWork;
@@ -45,6 +46,7 @@ import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
 import hudson.util.IOUtils;
 import jenkins.metrics.util.ExponentialLeakyBucket;
+import jenkins.metrics.util.NameRewriterMetricRegistry;
 import jenkins.model.Jenkins;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.HttpResponse;
@@ -56,12 +58,26 @@ import org.kohsuke.stapler.interceptor.RequirePOST;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.lang.management.ManagementFactory;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+
+import static com.codahale.metrics.MetricRegistry.name;
 
 /**
  * @author Stephen Connolly
@@ -154,7 +170,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return Metrics.cors(key, new MetricsResponse(Metrics.metricRegistry()));
     }
 
-    public HttpResponse doMetricsHistory(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+    public HttpResponse doMetricsHistory(StaplerRequest req, @QueryParameter("key") String key)
+            throws IllegalAccessException {
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
             key = getKeyFromAuthorizationHeader(req);
@@ -224,6 +241,137 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 output.close();
             }
         }
+    }
+
+    @Extension
+    public static class Sampler extends PeriodicWork {
+
+        private static final Set<String> METRIC_FIELD_NAMES = Collections.unmodifiableSet(
+                new HashSet<String>(Arrays.asList("gauges", "counters", "histograms", "meters", "timers"))
+        );
+        private final ExponentialLeakyBucket<Sample> bucket = new ExponentialLeakyBucket<Sample>(128, 0.005);
+        private final ObjectMapper mapper;
+
+        public Sampler() {
+            mapper = new ObjectMapper();
+            mapper.registerModule(new MetricsModule(RATE_UNIT, DURATION_UNIT, false));
+        }
+
+        /**
+         * Rewrites a json node so that all its immediate fields have the prefix and postfix applied
+         *
+         * @param json    the object to rewrite
+         * @param prefix  the prefix to apply
+         * @param postfix the postfix to apply
+         * @return the rewritten object
+         */
+        private static JsonNode renameFields(JsonNode json, String prefix, String postfix) {
+            if ((prefix == null && postfix == null) || !json.isObject()) {
+                return json;
+            }
+            ObjectNode result = JsonNodeFactory.instance.objectNode();
+            for (Iterator<Map.Entry<String, JsonNode>> fieldIterator = json.fields(); fieldIterator.hasNext(); ) {
+                final Map.Entry<String, JsonNode> field = fieldIterator.next();
+                result.put(name(prefix, field.getKey(), postfix), field.getValue());
+            }
+            return result;
+        }
+
+        private static JsonNode rewrite(JsonNode json, String prefix, String postfix) {
+            if ((prefix == null && postfix == null) || !json.isObject()) {
+                return json;
+            }
+            ObjectNode result = JsonNodeFactory.instance.objectNode();
+            for (Iterator<Map.Entry<String, JsonNode>> i = json.fields(); i.hasNext(); ) {
+                final Map.Entry<String, JsonNode> entry = i.next();
+                final String fieldName = entry.getKey();
+                if (METRIC_FIELD_NAMES.contains(fieldName)) {
+                    result.put(fieldName, renameFields(entry.getValue(), prefix, postfix));
+                } else {
+                    // pass-through
+                    result.put(fieldName, entry.getValue());
+                }
+
+            }
+            return result;
+        }
+
+        public Map<Date, Object> sample() {
+            Map<Date, Object> result = new TreeMap<Date, Object>();
+            ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
+            for (Sample s : bucket.values()) {
+                JsonNode value = s.getValue(reader);
+                if (value != null) {
+                    result.put(s.getTime(), value);
+                }
+            }
+            return result;
+        }
+
+        public Map<Date, Object> sample(String prefix, String postfix) {
+            Map<Date, Object> result = new TreeMap<Date, Object>();
+            ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
+            for (Sample s : bucket.values()) {
+                JsonNode value = s.getValue(reader);
+                if (value != null) {
+                    result.put(s.getTime(), rewrite(value, prefix, postfix));
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public long getRecurrencePeriod() {
+            return TimeUnit.SECONDS.toMillis(30);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            ObjectWriter writer = mapper.writer();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream(8192);
+            try {
+                GZIPOutputStream gzos = null;
+                try {
+                    gzos = new GZIPOutputStream(baos);
+                    writer.writeValue(gzos, Metrics.metricRegistry());
+                } finally {
+                    IOUtils.closeQuietly(gzos);
+                }
+            } finally {
+                baos.close();
+            }
+            bucket.add(new Sample(System.currentTimeMillis(), baos.toByteArray()));
+        }
+
+        @SuppressWarnings(value = "EI_EXPOSE_REP2")
+        public static class Sample {
+            private final long t;
+            private final byte[] v;
+
+            public Sample(long t, byte[] v) {
+                this.t = t;
+                this.v = v;
+            }
+
+            public Date getTime() {
+                return new Date(t);
+            }
+
+            public JsonNode getValue(ObjectReader reader) {
+                GZIPInputStream gzis = null;
+                try {
+                    gzis = new GZIPInputStream(new ByteArrayInputStream(v));
+                    return reader.readTree(gzis);
+                } catch (JsonProcessingException e) {
+                    return null;
+                } catch (IOException e) {
+                    return null;
+                } finally {
+                    IOUtils.closeQuietly(gzis);
+                }
+            }
+        }
+
     }
 
     public class Pseudoservlet {
@@ -363,6 +511,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
             String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
+            String prefix = Util.fixEmptyAndTrim(req.getParameter("prefix"));
+            String postfix = Util.fixEmptyAndTrim(req.getParameter("postfix"));
             resp.setHeader(CACHE_CONTROL, NO_CACHE);
             resp.setContentType(jsonp ? JSONP_CONTENT_TYPE : JSON_CONTENT_TYPE);
             resp.setStatus(HttpServletResponse.SC_OK);
@@ -374,7 +524,9 @@ public class MetricsRootAction implements UnprotectedRootAction {
                     output.write("(".getBytes("US-ASCII"));
                 }
                 Sampler sampler = Jenkins.getInstance().getExtensionList(PeriodicWork.class).get(Sampler.class);
-                Map<Date, Object> sample = sampler == null ? null : sampler.sample();
+                Map<Date, Object> sample = sampler == null
+                        ? null
+                        : (prefix == null && postfix == null ? sampler.sample() : sampler.sample(prefix, postfix));
                 output.write(getWriter(metricsMapper, req).writeValueAsBytes(sample));
                 if (jsonp) {
                     output.write(");".getBytes("US-ASCII"));
@@ -459,82 +611,5 @@ public class MetricsRootAction implements UnprotectedRootAction {
             Metrics.checkAccessKeyThreadDump(key);
             return Metrics.cors(key, super.doThreads());
         }
-    }
-
-    @Extension
-    public static class Sampler extends PeriodicWork {
-
-        private final ExponentialLeakyBucket<Sample> bucket = new ExponentialLeakyBucket<Sample>(128, 0.005);
-        private final ObjectMapper mapper;
-
-        public Sampler() {
-            mapper = new ObjectMapper();
-            mapper.registerModule(new MetricsModule(RATE_UNIT, DURATION_UNIT, false));
-        }
-
-        public Map<Date, Object> sample() {
-            Map<Date, Object> result = new TreeMap<Date, Object>();
-            ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
-            for (Sample s : bucket.values()) {
-                JsonNode value = s.getValue(reader);
-                if (value != null) {
-                    result.put(s.getTime(), value);
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public long getRecurrencePeriod() {
-            return TimeUnit.SECONDS.toMillis(30);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            ObjectWriter writer = mapper.writer();
-            ByteArrayOutputStream baos = new ByteArrayOutputStream(8192);
-            try {
-                GZIPOutputStream gzos = null;
-                try {
-                    gzos = new GZIPOutputStream(baos);
-                    writer.writeValue(gzos, Metrics.metricRegistry());
-                } finally {
-                    IOUtils.closeQuietly(gzos);
-                }
-            } finally {
-                baos.close();
-            }
-            bucket.add(new Sample(System.currentTimeMillis(), baos.toByteArray()));
-        }
-
-        @SuppressWarnings(value = "EI_EXPOSE_REP2")
-        public static class Sample {
-            private final long t;
-            private final byte[] v;
-
-            public Sample(long t, byte[] v) {
-                this.t = t;
-                this.v = v;
-            }
-
-            public Date getTime() {
-                return new Date(t);
-            }
-
-            public JsonNode getValue(ObjectReader reader) {
-                GZIPInputStream gzis = null;
-                try {
-                    gzis = new GZIPInputStream(new ByteArrayInputStream(v));
-                    return reader.readTree(gzis);
-                } catch (JsonProcessingException e) {
-                    return null;
-                } catch (IOException e) {
-                    return null;
-                } finally {
-                    IOUtils.closeQuietly(gzis);
-                }
-            }
-        }
-
     }
 }
