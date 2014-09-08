@@ -25,10 +25,12 @@
 package jenkins.metrics.impl;
 
 import com.codahale.metrics.CachedGauge;
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
@@ -47,6 +49,7 @@ import hudson.model.Job;
 import hudson.model.Node;
 import hudson.model.PeriodicWork;
 import hudson.model.Queue;
+import hudson.model.Result;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.model.listeners.RunListener;
@@ -124,6 +127,10 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
      * The amount of time jobs are building.
      */
     private Timer jenkinsJobBuildingTime;
+    /**
+     * Run Results.
+     */
+    private HashMap<String, Meter> jenkinsRunResults = new HashMap<String, Meter>();
     /**
      * The amount of time jobs take from initial scheduling to completion.
      */
@@ -360,8 +367,23 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         }
                         return count;
                     }
-                })
+                }),
+                metric(name("jenkins", "runs"), runCounters())
         );
+    }
+
+    private MetricSet runCounters() {
+        final Map<String, Metric> runCounters = new HashMap<String, Metric>();
+        for (String resultName : ResultRunListener.ALL) {
+            Meter counter = new Meter();
+            jenkinsRunResults.put(resultName, counter);
+            runCounters.put(resultName, counter);
+        }
+        return new MetricSet() {
+            public Map<String, Metric> getMetrics() {
+                return runCounters;
+            }
+        };
     }
 
     public static JenkinsMetricProviderImpl instance() {
@@ -514,6 +536,22 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 return;
             }
             instance.updateMetrics();
+        }
+
+    }
+
+    @Extension
+    public static class ResultRunListener extends RunListener<Run> {
+        static final String[] ALL = new String[]{
+                "success", "unstable", "failure", "not_built", "aborted", "total"};
+
+        @Override
+        public synchronized void onCompleted(Run run, TaskListener listener) {
+            JenkinsMetricProviderImpl instance = instance();
+            if (instance != null) {
+                instance.jenkinsRunResults.get(String.valueOf(run.getResult()).toLowerCase()).mark();
+                instance.jenkinsRunResults.get("total").mark();
+            }
         }
 
     }
