@@ -32,6 +32,8 @@ import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheckRegistry;
+import hudson.init.InitMilestone;
+import hudson.init.Initializer;
 import jenkins.metrics.impl.MetricsFilter;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -279,18 +281,38 @@ public class Metrics extends Plugin {
     }
 
     /**
-     * {@inheritDoc}
+     * Initializes all the metrics providers and health check providers. Ideally we would like this to be called
+     * earlier but there are occasional deadlocks that can arise if we attempt to enumerate the extensions prior
+     * to {@link InitMilestone#EXTENSIONS_AUGMENTED} so we had to move this functionality out of
+     * {@link #postInitialize()}
      */
-    @Override
-    public void postInitialize() throws Exception {
+    @Initializer(after = InitMilestone.EXTENSIONS_AUGMENTED, before = InitMilestone.JOB_LOADED)
+    public static void afterExtensionsAugmented() {
+        LOGGER.log(Level.FINER, "Registering metric provider and health check provider extensions...");
+        Jenkins jenkins = Jenkins.getInstance();
+        Metrics plugin = jenkins == null ? null : jenkins.getPlugin(Metrics.class);
+        if (plugin == null) {
+            LOGGER.log(Level.WARNING, "Could not register metrics providers or health check providers as "
+                    + "metrics plugin appears to be disabled");
+            return;
+        }
+        if (plugin.metricRegistry == null || plugin.healthCheckRegistry == null) {
+            LOGGER.log(Level.WARNING, "Could not register metrics providers or health check providers as "
+                    + "metrics plugin appears have failed initialization");
+            return;
+        }
+        LOGGER.log(Level.FINER, "Confirmed metrics plugin initialized");
         for (MetricProvider p : Jenkins.getInstance().getExtensionList(MetricProvider.class)) {
-            metricRegistry.registerAll(p.getMetricSet());
+            LOGGER.log(Level.FINER, "Registering metric provider {0} (type {1})", new Object[]{p, p.getClass()});
+            plugin.metricRegistry.registerAll(p.getMetricSet());
         }
         for (HealthCheckProvider p : Jenkins.getInstance().getExtensionList(HealthCheckProvider.class)) {
+            LOGGER.log(Level.FINER, "Registering health check provider {0} (type {1})", new Object[]{p, p.getClass()});
             for (Map.Entry<String, HealthCheck> c : p.getHealthChecks().entrySet()) {
-                healthCheckRegistry.register(c.getKey(), c.getValue());
+                plugin.healthCheckRegistry.register(c.getKey(), c.getValue());
             }
         }
+        LOGGER.log(Level.FINE, "Metric provider and health check provider extensions registered");
     }
 
     /**
