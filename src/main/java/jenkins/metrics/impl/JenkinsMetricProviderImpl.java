@@ -36,6 +36,7 @@ import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
 import hudson.model.Item;
 import hudson.model.ItemGroup;
+import hudson.model.Project;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.metrics.api.MetricProvider;
 import jenkins.metrics.api.Metrics;
@@ -215,7 +216,39 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         }
                     }
                 };
-
+        Gauge<JobStats> jobStats = new CachedGauge<JobStats>(5, TimeUnit.MINUTES) {
+            @Override
+            protected JobStats loadValue() {
+                SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
+                try {
+                    int count = 0;
+                    int disabledProjects = 0;
+                    int projectCount = 0;
+                    Stack<ItemGroup> q = new Stack<ItemGroup>();
+                    q.push(Jenkins.getInstance());
+                    while (!q.isEmpty()) {
+                        ItemGroup<?> parent = q.pop();
+                        for (Item i : parent.getItems()) {
+                            if (i instanceof Job) {
+                                count++;
+                                if (i instanceof Project) {
+                                    projectCount ++;
+                                    if (((Project) i).isDisabled()) {
+                                        disabledProjects++;
+                                    }
+                                }
+                            }
+                            if (i instanceof ItemGroup) {
+                                q.push((ItemGroup) i);
+                            }
+                        }
+                    }
+                    return new JobStats(count, projectCount,disabledProjects);
+                } finally {
+                    SecurityContextHolder.setContext(oldContext);
+                }
+            }
+        };
         set = metrics(metric(name("jenkins", "queue", "size"),
                 new AutoSamplingHistogram(new DerivativeGauge<QueueStats, Integer>(jenkinsQueue) {
                     @Override
@@ -295,29 +328,31 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         }).toMetricSet()),
                 metric(name("jenkins", "job", "scheduled"), (jenkinsJobScheduleRate = new Meter())),
                 metric(name("jenkins", "job", "count"),
-                        new AutoSamplingHistogram(new CachedGauge<Integer>(5, TimeUnit.MINUTES) {
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
                             @Override
-                            protected Integer loadValue() {
-                                SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
-                                try {
-                                    int count = 0;
-                                    Stack<ItemGroup> q = new Stack<ItemGroup>();
-                                    q.push(Jenkins.getInstance());
-                                    while (!q.isEmpty()) {
-                                        ItemGroup<?> parent = q.pop();
-                                        for (Item i : parent.getItems()) {
-                                            if (i instanceof Job) {
-                                                count++;
-                                            }
-                                            if (i instanceof ItemGroup) {
-                                                q.push((ItemGroup) i);
-                                            }
-                                        }
-                                    }
-                                    return count;
-                                } finally {
-                                    SecurityContextHolder.setContext(oldContext);
-                                }
+                            protected Integer transform(JobStats value) {
+                                return value.getJobCount();
+                            }
+                        }).toMetricSet()),
+                metric(name("jenkins", "project", "count"),
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
+                            @Override
+                            protected Integer transform(JobStats value) {
+                                return value.getProjectCount();
+                            }
+                        }).toMetricSet()),
+                metric(name("jenkins", "project", "enabled","count"),
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
+                            @Override
+                            protected Integer transform(JobStats value) {
+                                return value.getEnabledProjectCount();
+                            }
+                        }).toMetricSet()),
+                metric(name("jenkins", "project", "disabled","count"),
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
+                            @Override
+                            protected Integer transform(JobStats value) {
+                                return value.getDisabledProjectCount();
                             }
                         }).toMetricSet()),
                 metric(name("jenkins", "job", "queuing", "duration"), (jenkinsJobQueueTime = new Timer())),
@@ -517,6 +552,35 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
         public int getNodeOnline() {
             return nodeOnline;
+        }
+    }
+
+    private static class JobStats {
+        private final int jobCount;
+        private final int disabledProjectCount;
+        private final int projectCount;
+
+
+        public JobStats(int jobCount, int projectCount, int disabledProjectCount) {
+            this.jobCount = jobCount;
+            this.disabledProjectCount = disabledProjectCount;
+            this.projectCount = projectCount;
+        }
+
+        public int getJobCount() {
+            return jobCount;
+        }
+
+        public int getDisabledProjectCount() {
+            return disabledProjectCount;
+        }
+
+        public int getProjectCount() {
+            return projectCount;
+        }
+
+        public Integer getEnabledProjectCount() {
+            return projectCount - disabledProjectCount;
         }
     }
 
