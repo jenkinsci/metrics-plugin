@@ -37,6 +37,7 @@ import com.codahale.metrics.Timer;
 import hudson.model.Item;
 import hudson.model.ItemGroup;
 import hudson.model.Project;
+import hudson.model.TopLevelItem;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.metrics.api.MetricProvider;
 import jenkins.metrics.api.Metrics;
@@ -229,6 +230,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     while (!q.isEmpty()) {
                         ItemGroup<?> parent = q.pop();
                         for (Item i : parent.getItems()) {
+                            if (! (i instanceof TopLevelItem)) continue;
                             if (i instanceof Job) {
                                 count++;
                                 if (i instanceof Project) {
