@@ -34,6 +34,7 @@ import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
+import hudson.model.AbstractProject;
 import hudson.model.Item;
 import hudson.model.ItemGroup;
 import hudson.model.Project;
@@ -233,9 +234,9 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             if (! (i instanceof TopLevelItem)) continue;
                             if (i instanceof Job) {
                                 count++;
-                                if (i instanceof Project) {
+                                if (i instanceof AbstractProject) {
                                     projectCount ++;
-                                    if (((Project) i).isDisabled()) {
+                                    if (((AbstractProject) i).isDisabled()) {
                                         disabledProjects++;
                                     }
                                 }
