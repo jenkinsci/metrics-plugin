@@ -161,6 +161,21 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return Metrics.cors(key, new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks()));
     }
 
+    // return status 200 if everything is OK, 417 (expectation failed) otherwise
+    public HttpResponse doHealthcheckOk(StaplerRequest req)
+            throws IllegalAccessException {
+        SortedMap<String, HealthCheck.Result> checks =  Metrics.healthCheckRegistry().runHealthChecks();
+        boolean allOk = true;
+        for(Map.Entry<String, HealthCheck.Result> entry: checks.entrySet()){
+            HealthCheck.Result result = entry.getValue();
+            if(!result.isHealthy()){
+                allOk = false;
+                break;
+            }
+        }
+        return HttpResponses.status(allOk ? 200 : 417);
+    }
+
     public HttpResponse doMetrics(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
