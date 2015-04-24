@@ -170,7 +170,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      * only exposes one bit information, it's deemed OK to be exposed
      * unsecurely.
      *
-     * return status 200 if everything is OK, 417 (expectation failed) otherwise
+     * return status 200 if everything is OK, 503 (service unavailable) otherwise
      */
     public HttpResponse doHealthcheckOk() {
         SortedMap<String, HealthCheck.Result> checks =  Metrics.healthCheckRegistry().runHealthChecks();
@@ -182,7 +182,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 break;
             }
         }
-        return HttpResponses.status(allOk ? 200 : 417);
+        return HttpResponses.status(allOk ? 200 : 503);
     }
 
     public HttpResponse doMetrics(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
