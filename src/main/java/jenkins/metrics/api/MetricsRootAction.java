@@ -161,9 +161,18 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return Metrics.cors(key, new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks()));
     }
 
-    // return status 200 if everything is OK, 417 (expectation failed) otherwise
-    public HttpResponse doHealthcheckOk(StaplerRequest req)
-            throws IllegalAccessException {
+    /**
+     * Condense the health check into one bit of information
+     * for frontend reverse proxies like haproxy.
+     *
+     * Other health check calls requires authentication, which
+     * is not suitable for the haproxy use. But this endpoint
+     * only exposes one bit information, it's deemed OK to be exposed
+     * unsecurely.
+     *
+     * return status 200 if everything is OK, 417 (expectation failed) otherwise
+     */
+    public HttpResponse doHealthcheckOk() {
         SortedMap<String, HealthCheck.Result> checks =  Metrics.healthCheckRegistry().runHealthChecks();
         boolean allOk = true;
         for(Map.Entry<String, HealthCheck.Result> entry: checks.entrySet()){
