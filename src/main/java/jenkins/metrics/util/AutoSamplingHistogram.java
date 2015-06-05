@@ -94,6 +94,14 @@ public class AutoSamplingHistogram extends Histogram {
         return new GaugeHistogramMetricSet(metrics);
     }
 
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("AutoSamplingHistogram{");
+        sb.append("source=").append(source);
+        sb.append('}');
+        return sb.toString();
+    }
+
     @Extension
     public static class PeriodicWorkImpl extends PeriodicWork {
         
