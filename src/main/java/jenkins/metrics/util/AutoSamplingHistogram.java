@@ -113,12 +113,15 @@ public class AutoSamplingHistogram extends Histogram {
                         ((AutoSamplingHistogram) histogram).update();
                     } catch (Exception e) {
                         Long lw = lastWarning.get(histogram);
-                        LogRecord lr = new LogRecord(lw == null || lw + TimeUnit.HOURS.toMillis(1) < System.currentTimeMillis()
-                        ? Level.WARNING : Level.FINE, "Uncaught exception when calling update for {0}");
+                        final boolean warn = lw == null || lw + TimeUnit.HOURS.toMillis(1) < System.currentTimeMillis();
+                        LogRecord lr = new LogRecord(warn ? Level.WARNING : Level.FINE, 
+                                "Uncaught exception when calling update for {0}");
                         lr.setParameters(new Object[]{histogram});
                         lr.setThrown(e);
                         LOGGER.log(lr);
-                        lastWarning.put(histogram, System.currentTimeMillis());
+                        if (warn) {
+                            lastWarning.put(histogram, System.currentTimeMillis());
+                        }
                     } catch (Error e) {
                         LogRecord lr = new LogRecord(Level.WARNING, "Error encountered while attempting to update {0}");
                         lr.setParameters(new Object[]{histogram});
