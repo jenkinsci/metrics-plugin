@@ -66,7 +66,11 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     private final boolean canHealthCheck;
     private final boolean canMetrics;
     private final String origins;
-    private transient String[] originRegexs;
+    /**
+     * Cache of regular expressions being produced for {@link #origins}.
+     * It will be recalculated on the first access.
+     */
+    private transient String[] originRegexs = null;
 
     public MetricsAccessKey(String description, String key) {
         this(description, key, true, false, false, true, null);
