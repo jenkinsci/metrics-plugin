@@ -187,10 +187,12 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>findbugs-maven-plugin</artifactId>
-        <version>2.5.2</version>
+        <version>3.0.1</version>
         <configuration>
           <excludeFilterFile>src/findbugs/excludesFilter.xml</excludeFilterFile>
           <failOnError>${maven.findbugs.failure.strict}</failOnError>
+          <xmlOutput>true</xmlOutput>
+          <findbugsXmlWithMessages>true</findbugsXmlWithMessages>
         </configuration>
         <executions>
           <execution>

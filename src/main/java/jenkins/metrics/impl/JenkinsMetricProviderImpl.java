@@ -75,6 +75,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.TimeUnit;
 
 import static com.codahale.metrics.MetricRegistry.name;
+import java.util.Locale;
 
 /**
  * @author Stephen Connolly
@@ -616,7 +617,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         public synchronized void onCompleted(Run run, TaskListener listener) {
             JenkinsMetricProviderImpl instance = instance();
             if (instance != null) {
-                instance.jenkinsRunResults.get(String.valueOf(run.getResult()).toLowerCase()).mark();
+                instance.jenkinsRunResults.get(String.valueOf(run.getResult()).toLowerCase(Locale.ENGLISH)).mark();
                 instance.jenkinsRunResults.get("total").mark();
             }
         }
