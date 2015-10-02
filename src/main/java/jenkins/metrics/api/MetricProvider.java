@@ -51,6 +51,16 @@ public abstract class MetricProvider implements ExtensionPoint {
         return new FixedMetricSet(result);
     }
 
+    protected static MetricSet metrics(Map<String, Metric> metrics) {
+        final Map<String, Metric> result = new LinkedHashMap<String, Metric>(metrics.size());
+        for (Map.Entry<String, Metric> metric : metrics.entrySet()) {
+            if (metric != null && metric.getValue() != null) {
+                result.put(metric.getKey(), metric.getValue());
+            }
+        }
+        return new FixedMetricSet(result);
+    }
+
     /**
      * Returns the set of metrics to register.
      *
