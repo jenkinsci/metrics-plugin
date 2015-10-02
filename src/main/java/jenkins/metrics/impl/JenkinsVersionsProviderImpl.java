@@ -42,7 +42,6 @@ public class JenkinsVersionsProviderImpl extends MetricProvider {
             final Jenkins jenkins = Jenkins.getInstance();
             if (jenkins != null) {
                 final PluginManager pluginManager = jenkins.getPluginManager();
-                Map<String, String> result = new TreeMap<String, String>();
                 for (PluginWrapper p : pluginManager.getPlugins()) {
                     if (p.isActive()) {
                         metrics.put(name("jenkins", "versions", "plugin", p.getShortName()),
