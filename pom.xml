@@ -33,7 +33,7 @@
   </parent>
 
   <artifactId>metrics</artifactId>
-  <version>3.0.12-SNAPSHOT</version>
+  <version>3.1.2-SNAPSHOT</version>
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
@@ -68,7 +68,7 @@
   </scm>
 
   <properties>
-    <metrics.version>3.0.2</metrics.version>
+    <metrics.version>3.1.2</metrics.version>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -107,27 +107,27 @@
     </dependency>
     <!-- regular dependencies -->
     <dependency>
-      <groupId>com.codahale.metrics</groupId>
+      <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-core</artifactId>
       <version>${metrics.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.codahale.metrics</groupId>
+      <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-servlet</artifactId>
       <version>${metrics.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.codahale.metrics</groupId>
+      <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-healthchecks</artifactId>
       <version>${metrics.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.codahale.metrics</groupId>
+      <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-jvm</artifactId>
       <version>${metrics.version}</version>
     </dependency>
     <dependency>
-      <groupId>com.codahale.metrics</groupId>
+      <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-json</artifactId>
       <version>${metrics.version}</version>
     </dependency>

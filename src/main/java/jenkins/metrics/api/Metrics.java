@@ -460,6 +460,9 @@ public class Metrics extends Plugin {
                     }
                 }
             }
+            for (String key: removed) {
+                registry.unregister(key);
+            }
 
             listener.getLogger().println("Starting health checks at " + new Date());
             Timer.Context context = healthCheckDuration.time();
