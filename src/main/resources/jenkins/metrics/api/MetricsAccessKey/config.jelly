@@ -32,7 +32,7 @@
            readonly="true" style="width: 80ex;"
            onclick="this.select();"/>
     <input type="button" value="${%Generate}..." onclick="(function(){
-    var src = window.event.target || window.event.srcElement;
+    var src = event.target || event.srcElement;
     var fld = findPreviousFormItem(src,'key');
                 var text = '';
                 var possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
