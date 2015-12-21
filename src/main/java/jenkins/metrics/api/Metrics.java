@@ -331,9 +331,19 @@ public class Metrics extends Plugin {
 
     /**
      * provides the health check related metrics.
+     * 
+     * @deprecated use HealthCheckMetricsProvider
+     */
+    @Deprecated
+    @Extension
+    public static class HeathCheckMetricsProvider extends HealthCheckMetricsProvider {
+    }
+
+    /**
+     * provides the health check related metrics.
      */
     @Extension
-    public static class HeathCheckMetricsProvider extends MetricProvider {
+    public static class HealthCheckMetricsProvider extends MetricProvider {
 
         /**
          * {@inheritDoc}
