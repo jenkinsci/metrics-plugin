@@ -335,7 +335,6 @@ public class Metrics extends Plugin {
      * @deprecated use HealthCheckMetricsProvider
      */
     @Deprecated
-    @Extension
     public static class HeathCheckMetricsProvider extends HealthCheckMetricsProvider {
     }
 
