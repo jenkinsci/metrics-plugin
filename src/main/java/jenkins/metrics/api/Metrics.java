@@ -51,6 +51,9 @@ import hudson.util.PluginServletFilter;
 import hudson.util.StreamTaskListener;
 import hudson.util.TimeUnit2;
 import jenkins.model.Jenkins;
+
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpResponse;
 
 import java.io.File;
@@ -335,6 +338,7 @@ public class Metrics extends Plugin {
      * @deprecated use HealthCheckMetricsProvider
      */
     @Deprecated
+    @Restricted(NoExternalUse.class)
     public static class HeathCheckMetricsProvider extends HealthCheckMetricsProvider {
     }
 
