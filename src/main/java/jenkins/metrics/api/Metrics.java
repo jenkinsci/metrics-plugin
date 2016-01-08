@@ -500,6 +500,9 @@ public class Metrics extends Plugin {
                     unhealthyName.add(e.getKey());
                 }
             }
+            // delete any result whose health check had been removed
+            healthCheckResults.keySet().retainAll(results.keySet());
+
             score = total / ((double) count);
             Set<String> lastUnhealthy = this.lastUnhealthy;
             this.lastUnhealthy = unhealthyName;
