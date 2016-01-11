@@ -493,7 +493,7 @@ public class Metrics extends Plugin {
             } finally {
                 context.stop();
             }
-            listener.getLogger().println("Health check results at" + new Date() + ":");
+            listener.getLogger().println("Health check results at " + new Date() + ":");
             Set<String> unhealthy = null;
             Set<String> unhealthyName = null;
             int count = 0;
