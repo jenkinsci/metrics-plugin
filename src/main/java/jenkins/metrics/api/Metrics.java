@@ -56,6 +56,7 @@ import org.kohsuke.stapler.HttpResponse;
 import java.io.File;
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -364,6 +365,9 @@ public class Metrics extends Plugin {
     public static class HealthChecker extends PeriodicWork {
 
         private final Timer healthCheckDuration = new Timer();
+
+        private Map<String, HealthCheck.Result> healthCheckResults = new HashMap<String, HealthCheck.Result>();
+
         private final Gauge<Integer> healthCheckCount = new Gauge<Integer>() {
             public Integer getValue() {
                 return healthCheckRegistry().getNames().size();
@@ -389,6 +393,10 @@ public class Metrics extends Plugin {
 
         public Timer getHealthCheckDuration() {
             return healthCheckDuration;
+        }
+
+        public Map<String, HealthCheck.Result> getHealthCheckResults() {
+            return healthCheckResults;
         }
 
         public Gauge<Integer> getHealthCheckCount() {
@@ -480,6 +488,7 @@ public class Metrics extends Plugin {
             for (Map.Entry<String, HealthCheck.Result> e : results.entrySet()) {
                 count++;
                 listener.getLogger().println(" * " + e.getKey() + ": " + e.getValue());
+                healthCheckResults.put(e.getKey(), e.getValue());
                 if (e.getValue().isHealthy()) {
                     total++;
                 } else {
@@ -491,6 +500,9 @@ public class Metrics extends Plugin {
                     unhealthyName.add(e.getKey());
                 }
             }
+            // delete any result whose health check had been removed
+            healthCheckResults.keySet().retainAll(results.keySet());
+
             score = total / ((double) count);
             Set<String> lastUnhealthy = this.lastUnhealthy;
             this.lastUnhealthy = unhealthyName;
