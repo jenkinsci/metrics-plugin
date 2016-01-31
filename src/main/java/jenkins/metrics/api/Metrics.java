@@ -31,6 +31,7 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.health.HealthCheck;
+import com.codahale.metrics.health.HealthCheck.Result;
 import com.codahale.metrics.health.HealthCheckRegistry;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
@@ -57,18 +58,21 @@ import org.kohsuke.stapler.HttpResponse;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import javax.annotation.Nonnull;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
@@ -137,6 +141,26 @@ public class Metrics extends Plugin {
             throw new AssertionError(Metrics.class.getName() + " is missing its HealthCheckRegistry");
         }
         return plugin.healthCheckRegistry;
+    }
+
+    /**
+     * Get the last health check results
+     * 
+     * @return a map with health check name -> health check result
+     */
+    @Nonnull
+    public static SortedMap<String, Result> getHealthCheckResults() {
+        Jenkins jenkins = Jenkins.getInstance();
+        if (jenkins == null) {
+            LOGGER.warning("Unable to get health check results, client master is not ready (startup or shutdown)");
+            return Collections.emptySortedMap();
+        }
+        HealthChecker healthChecker = jenkins.getExtensionList(PeriodicWork.class).get(HealthChecker.class);
+        if (healthChecker == null) {
+            LOGGER.warning("Unable to get health check results, HealthChecker is not available");
+            return Collections.emptySortedMap();
+        }
+        return healthChecker.getSortedHealthCheckResults();
     }
 
     /**
@@ -368,7 +392,7 @@ public class Metrics extends Plugin {
 
         private final Timer healthCheckDuration = new Timer();
 
-        private Map<String, HealthCheck.Result> healthCheckResults = new HashMap<String, HealthCheck.Result>();
+        private SortedMap<String, HealthCheck.Result> healthCheckResults = new TreeMap<String, HealthCheck.Result>();
 
         private final Gauge<Integer> healthCheckCount = new Gauge<Integer>() {
             public Integer getValue() {
@@ -398,6 +422,10 @@ public class Metrics extends Plugin {
         }
 
         public Map<String, HealthCheck.Result> getHealthCheckResults() {
+            return getSortedHealthCheckResults();
+        }
+
+        public SortedMap<String, HealthCheck.Result> getSortedHealthCheckResults() {
             return healthCheckResults;
         }
 

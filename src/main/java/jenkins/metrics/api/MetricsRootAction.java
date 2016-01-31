@@ -158,7 +158,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
             key = getKeyFromAuthorizationHeader(req);
         }
         Metrics.checkAccessKeyHealthCheck(key);
-        return Metrics.cors(key, new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks()));
+        return Metrics.cors(key, new HealthCheckResponse(Metrics.getHealthCheckResults()));
     }
 
     /**
@@ -173,7 +173,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      * return status 200 if everything is OK, 503 (service unavailable) otherwise
      */
     public HttpResponse doHealthcheckOk() {
-        SortedMap<String, HealthCheck.Result> checks =  Metrics.healthCheckRegistry().runHealthChecks();
+        SortedMap<String, HealthCheck.Result> checks =  Metrics.getHealthCheckResults();
         boolean allOk = true;
         for(Map.Entry<String, HealthCheck.Result> entry: checks.entrySet()){
             HealthCheck.Result result = entry.getValue();
@@ -401,7 +401,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
     public class Pseudoservlet {
 
         public HttpResponse doHealthcheck() {
-            return new HealthCheckResponse(Metrics.healthCheckRegistry().runHealthChecks());
+            return new HealthCheckResponse(Metrics.getHealthCheckResults());
         }
 
         public HttpResponse doMetrics() {
