@@ -45,12 +45,11 @@ import hudson.security.ACL;
 import hudson.security.Permission;
 import hudson.security.PermissionGroup;
 import hudson.security.PermissionScope;
-import hudson.util.DaemonThreadFactory;
-import hudson.util.ExceptionCatchingThreadFactory;
 import hudson.util.PluginServletFilter;
 import hudson.util.StreamTaskListener;
 import hudson.util.TimeUnit2;
 import jenkins.model.Jenkins;
+import jenkins.metrics.util.HealthChecksThreadPool;
 
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
@@ -67,11 +66,7 @@ import java.util.SortedMap;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -112,19 +107,9 @@ public class Metrics extends Plugin {
      */
     private static final Logger LOGGER = Logger.getLogger(Metrics.class.getName());
     /**
-     * Thread pool for running health checks. We set the pool upper limit to 4 and we keep threads around for 5 seconds
-     * as this is a bursty pool used once per minute.
+     * Thread pool for running health checks.
      */
-    private static final ExecutorService threadPoolForHealthChecks = new ThreadPoolExecutor(0, 4,
-            5L, TimeUnit.SECONDS,
-            new SynchronousQueue<Runnable>(),
-            new ExceptionCatchingThreadFactory(new DaemonThreadFactory(new ThreadFactory() {
-                private final AtomicInteger number = new AtomicInteger();
-
-                public Thread newThread(Runnable r) {
-                    return new Thread(r, "Metrics-HealthChecks-" + number.incrementAndGet());
-                }
-            })));
+    private static ExecutorService threadPoolForHealthChecks;
     /**
      * The registry of metrics.
      */
@@ -316,6 +301,7 @@ public class Metrics extends Plugin {
                 plugin.healthCheckRegistry.register(c.getKey(), c.getValue());
             }
         }
+        threadPoolForHealthChecks = new HealthChecksThreadPool(healthCheckRegistry());
         LOGGER.log(Level.FINE, "Metric provider and health check provider extensions registered");
     }
 
@@ -430,6 +416,10 @@ public class Metrics extends Plugin {
                             HealthChecker.class.getName() + " thread is still running. Execution aborted.");
                     return;
                 }
+                if (threadPoolForHealthChecks == null) {
+                    LOGGER.info("Health checks thread pool not yet initialized, skipping until next execution");
+                    return;
+                }
                 future = threadPoolForHealthChecks.submit(new Runnable() {
                     public void run() {
                         logger.log(Level.FINE, "Started " + HealthChecker.class.getName());
@@ -451,6 +441,11 @@ public class Metrics extends Plugin {
                             }
                         } catch (InterruptedException e) {
                             e.printStackTrace(l.fatalError("aborted"));
+                        } catch (Exception e) {
+                            logger.log(Level.SEVERE, "Error running " + HealthChecker.class.getName(), e);
+                            if (l != null) {
+                                e.printStackTrace(l.fatalError(e.getMessage()));
+                            }
                         } finally {
                             if (l != null) {
                                 l.closeQuietly();
@@ -490,6 +485,10 @@ public class Metrics extends Plugin {
             SortedMap<String, HealthCheck.Result> results;
             try {
                 results = registry.runHealthChecks(threadPoolForHealthChecks);
+            } catch (RejectedExecutionException e) {
+                listener.error("Health checks execution is rejected due to: {0}", e.getMessage());
+                LOGGER.log(Level.INFO, "Health checks execution is rejected due to: {0}", e.getMessage());
+                return;
             } finally {
                 context.stop();
             }
