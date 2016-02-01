@@ -42,8 +42,9 @@ import hudson.util.ExceptionCatchingThreadFactory;
 import jenkins.metrics.api.Metrics.HealthChecker;
 
 /**
- * Thread pool for running health checks. We set the pool size to 4 (max) and we keep threads around for 5 seconds as
- * this is a bursty pool used once per minute.
+ * Thread pool for running health checks. We set the pool size to 4 by default (configurable with system property
+ * HEALTH_CHECKER_MAX_THREAD_POOL_SIZE) and we keep threads around for 5 seconds as this is a bursty pool used once per
+ * minute.
  * 
  * The queue is set to the same size as the number of health checks, minus the 4 threads in the pool, plus one, as the
  * {@link HealthChecker} itself is executed in the pool too. For example for 10 health checks we have the thread pool
@@ -58,7 +59,9 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
 
     private static final Logger LOGGER = Logger.getLogger(HealthChecksThreadPool.class.getName());
 
-    private static final int MAX_THREAD_POOL_SIZE = 4;
+    private static final int MAX_THREAD_POOL_SIZE = Integer
+            .parseInt(System.getProperty("HEALTH_CHECKER_MAX_THREAD_POOL_SIZE", "4"));
+
     private static long rejectedExecutions;
 
     public HealthChecksThreadPool(HealthCheckRegistry healthCheckRegistry) {
