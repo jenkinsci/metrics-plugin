@@ -39,7 +39,6 @@ import com.codahale.metrics.health.HealthCheckRegistry;
 
 import hudson.util.DaemonThreadFactory;
 import hudson.util.ExceptionCatchingThreadFactory;
-import jenkins.metrics.api.Metrics;
 
 /**
  * Thread pool for running health checks. We set the pool size to 4 (max) and we keep threads around for 5 seconds as
@@ -51,7 +50,7 @@ import jenkins.metrics.api.Metrics;
  */
 public class HealthChecksThreadPool extends ThreadPoolExecutor {
 
-    private static final Logger LOGGER = Logger.getLogger(Metrics.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(HealthChecksThreadPool.class.getName());
 
     private static final int MAX_THREAD_POOL_SIZE = 4;
     private static long rejectedExecutions;

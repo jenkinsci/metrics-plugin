@@ -486,8 +486,9 @@ public class Metrics extends Plugin {
             try {
                 results = registry.runHealthChecks(threadPoolForHealthChecks);
             } catch (RejectedExecutionException e) {
-                listener.error("Health checks execution is rejected due to: {0}", e.getMessage());
-                LOGGER.log(Level.INFO, "Health checks execution is rejected due to: {0}", e.getMessage());
+                // should never happen, as we are using a DiscardOldestPolicy in the thread pool queue
+                listener.error("Health checks execution was rejected instead of queued: {0}", e);
+                LOGGER.log(Level.WARNING, "Health checks execution was rejected instead of queued: {0}", e);
                 return;
             } finally {
                 context.stop();
