@@ -39,12 +39,18 @@ import com.codahale.metrics.health.HealthCheckRegistry;
 
 import hudson.util.DaemonThreadFactory;
 import hudson.util.ExceptionCatchingThreadFactory;
+import jenkins.metrics.api.Metrics.HealthChecker;
 
 /**
  * Thread pool for running health checks. We set the pool size to 4 (max) and we keep threads around for 5 seconds as
- * this is a bursty pool used once per minute. The queue is set to the same size as the number of health checks,
- * dropping oldest items in the queue as new ones come in, to avoid running more than one health check in each
- * recurrence period.
+ * this is a bursty pool used once per minute.
+ * 
+ * The queue is set to the same size as the number of health checks, minus the 4 threads in the pool, plus one, as the
+ * {@link HealthChecker} itself is executed in the pool too. For example for 10 health checks we have the thread pool
+ * (4) + the queue (7) = 11 for the 10 health checks and the HealthChecker.
+ * 
+ * The {@link RejectedExecutionHandler} is configured to drop oldest items in the queue as new ones come in, to avoid
+ * running more than one health check in each recurrence period.
  * 
  * @since 3.1.2.3
  */
