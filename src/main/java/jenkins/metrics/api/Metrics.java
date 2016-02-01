@@ -168,12 +168,12 @@ public class Metrics extends Plugin {
         Jenkins jenkins = Jenkins.getInstance();
         if (jenkins == null) {
             LOGGER.warning("Unable to get health check results, client master is not ready (startup or shutdown)");
-            return Collections.emptySortedMap();
+            return new TreeMap<String, Result>();
         }
         HealthChecker healthChecker = jenkins.getExtensionList(PeriodicWork.class).get(HealthChecker.class);
         if (healthChecker == null) {
             LOGGER.warning("Unable to get health check results, HealthChecker is not available");
-            return Collections.emptySortedMap();
+            return new TreeMap<String, Result>();
         }
         return healthChecker.getSortedHealthCheckResults();
     }
