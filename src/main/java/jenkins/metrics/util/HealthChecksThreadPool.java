@@ -77,6 +77,10 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
                         return new Thread(r, "Metrics-HealthChecks-" + number.incrementAndGet());
                     }
                 })), new MetricsRejectedExecutionHandler(healthCheckRegistry));
+        LOGGER.log(Level.FINE,
+                "Created thread pool with a max of {0} threads (plus {1} in queue) for {2} health checks",
+                new Object[] { getMaximumPoolSize(), getQueue().remainingCapacity(),
+                        healthCheckRegistry.getNames().size() });
     }
 
     @Restricted(DoNotUse.class) // testing only
