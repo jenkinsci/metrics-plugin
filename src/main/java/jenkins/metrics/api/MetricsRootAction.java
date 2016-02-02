@@ -188,7 +188,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         Metrics.HealthCheckData data = Metrics.getHealthCheckData();
         if (data == null) {
             // TODO perhaps block until the result is available
-            return HttpResponses.status(503);
+            return HttpResponses.status(200);
         }
         if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
             return HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED);
