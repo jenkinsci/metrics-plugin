@@ -45,19 +45,6 @@ import hudson.model.PeriodicWork;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
 import hudson.util.IOUtils;
-import jenkins.metrics.util.ExponentialLeakyBucket;
-import jenkins.metrics.util.NameRewriterMetricRegistry;
-import jenkins.model.Jenkins;
-import org.apache.commons.lang.StringUtils;
-import org.kohsuke.stapler.HttpResponse;
-import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.StaplerResponse;
-import org.kohsuke.stapler.interceptor.RequirePOST;
-
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -76,6 +63,20 @@ import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import jenkins.metrics.util.ExponentialLeakyBucket;
+import jenkins.metrics.util.NameRewriterMetricRegistry;
+import jenkins.model.Jenkins;
+import org.apache.commons.lang.StringUtils;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
+import org.kohsuke.stapler.HttpResponse;
+import org.kohsuke.stapler.QueryParameter;
+import org.kohsuke.stapler.StaplerRequest;
+import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
@@ -158,6 +159,10 @@ public class MetricsRootAction implements UnprotectedRootAction {
             key = getKeyFromAuthorizationHeader(req);
         }
         Metrics.checkAccessKeyHealthCheck(key);
+        long ifModifiedSince = req.getDateHeader("If-Modified-Since");
+        if (ifModifiedSince != -1 && Metrics.getHealthCheckResultMillis() < ifModifiedSince) {
+            return Metrics.cors(key, HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED));
+        }
         return Metrics.cors(key, new HealthCheckResponse(Metrics.getHealthCheckResults()));
     }
 
@@ -172,7 +177,11 @@ public class MetricsRootAction implements UnprotectedRootAction {
      *
      * return status 200 if everything is OK, 503 (service unavailable) otherwise
      */
-    public HttpResponse doHealthcheckOk() {
+    public HttpResponse doHealthcheckOk(StaplerRequest req) {
+        long ifModifiedSince = req.getDateHeader("If-Modified-Since");
+        if (ifModifiedSince != -1 && Metrics.getHealthCheckResultMillis() < ifModifiedSince) {
+            return HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED);
+        }
         SortedMap<String, HealthCheck.Result> checks =  Metrics.getHealthCheckResults();
         boolean allOk = true;
         for(Map.Entry<String, HealthCheck.Result> entry: checks.entrySet()){
@@ -398,28 +407,72 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
     }
 
+    /**
+     * A binding of the standard dropwizard metrics servlet into the stapler API
+     */
+    @Restricted(NoExternalUse.class) // only for use by stapler web binding
     public class Pseudoservlet {
 
-        public HttpResponse doHealthcheck() {
+        /**
+         * Web binding for {@literal /healthcheck}
+         * @param req the request
+         * @return the response
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
+        public HttpResponse doHealthcheck(StaplerRequest req) {
+            long ifModifiedSince = req.getDateHeader("If-Modified-Since");
+            if (ifModifiedSince != -1 && Metrics.getHealthCheckResultMillis() < ifModifiedSince) {
+                return HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED);
+            }
             return new HealthCheckResponse(Metrics.getHealthCheckResults());
         }
 
+        /**
+         * Web binding for {@literal /metrics}
+         *
+         * @return the response
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         public HttpResponse doMetrics() {
             return new MetricsResponse(Metrics.metricRegistry());
         }
 
+        /**
+         * Web binding for {@literal /metricsHistory}
+         *
+         * @return the response
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         public HttpResponse doMetricsHistory() {
             return new MetricsHistoryResponse();
         }
 
+        /**
+         * Web binding for {@literal /ping}
+         *
+         * @return the response
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         public HttpResponse doPing() {
             return new PingResponse();
         }
 
+        /**
+         * Web binding for {@literal /threads}
+         *
+         * @return the response
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         public HttpResponse doThreads() {
             return new ThreadDumpResponse(new ThreadDump(ManagementFactory.getThreadMXBean()));
         }
 
+        /**
+         * Web binding for {@literal /}
+         *
+         * @return the response
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         public HttpResponse doIndex() {
             return HttpResponses
                     .html("<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"\n" +
@@ -561,37 +614,67 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
     }
 
+    /**
+     * Web binding for the current user.
+     *
+     * @see MetricsRootAction#getCurrentUser()
+     */
+    @Restricted(NoExternalUse.class) // only for use by stapler web binding
     public class CurrentUserPseudoservlet extends Pseudoservlet {
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
-        public HttpResponse doHealthcheck() {
+        public HttpResponse doHealthcheck(StaplerRequest req) {
             Jenkins.getInstance().checkPermission(Metrics.HEALTH_CHECK);
-            return super.doHealthcheck();
+            return super.doHealthcheck(req);
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doIndex() {
             Jenkins.getInstance().checkPermission(Metrics.VIEW);
             return super.doIndex();
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doMetrics() {
             Jenkins.getInstance().checkPermission(Metrics.VIEW);
             return super.doMetrics();
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doMetricsHistory() {
             Jenkins.getInstance().checkPermission(Metrics.VIEW);
             return super.doMetricsHistory();
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doPing() {
             Jenkins.getInstance().checkPermission(Metrics.VIEW);
             return super.doPing();
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doThreads() {
             Jenkins.getInstance().checkPermission(Metrics.THREAD_DUMP);
@@ -599,37 +682,70 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
     }
 
+    /**
+     * Web binding for the access keys
+     *
+     * @see MetricsRootAction#getDynamic(String)
+     */
+    @Restricted(NoExternalUse.class) // only for use by stapler web binding
     public class AccessKeyPseudoservlet extends Pseudoservlet {
+        /**
+         * The access key for this binding.
+         */
         private final String key;
 
+        /**
+         * Constructor.
+         * @param key the access key.
+         */
         public AccessKeyPseudoservlet(String key) {
             this.key = key;
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
-        public HttpResponse doHealthcheck() {
+        public HttpResponse doHealthcheck(StaplerRequest req) {
             Metrics.checkAccessKeyHealthCheck(key);
-            return Metrics.cors(key, super.doHealthcheck());
+            return Metrics.cors(key, super.doHealthcheck(req));
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doMetrics() {
             Metrics.checkAccessKeyMetrics(key);
             return Metrics.cors(key, super.doMetrics());
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doMetricsHistory() {
             Metrics.checkAccessKeyMetrics(key);
             return Metrics.cors(key, super.doMetricsHistory());
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doPing() {
             Metrics.checkAccessKeyPing(key);
             return Metrics.cors(key, super.doPing());
         }
 
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
         public HttpResponse doThreads() {
             Metrics.checkAccessKeyThreadDump(key);

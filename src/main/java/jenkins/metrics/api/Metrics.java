@@ -164,6 +164,26 @@ public class Metrics extends Plugin {
     }
 
     /**
+     * Get the number of milliseconds since January 1, 1970 GMT when the health check was last run.
+     *
+     * @return the number of milliseconds since January 1, 1970 GMT or {@literal -1}.
+     */
+    @Nonnull
+    public static long getHealthCheckResultMillis() {
+        Jenkins jenkins = Jenkins.getInstance();
+        if (jenkins == null) {
+            LOGGER.warning("Unable to get health check results, client master is not ready (startup or shutdown)");
+            return -1;
+        }
+        HealthChecker healthChecker = jenkins.getExtensionList(PeriodicWork.class).get(HealthChecker.class);
+        if (healthChecker == null) {
+            LOGGER.warning("Unable to get health check results, HealthChecker is not available");
+            return -1;
+        }
+        return healthChecker.getHealthCheckResultMillis();
+    }
+
+    /**
      * Returns the {@link MetricRegistry} for the current {@link Jenkins}.
      *
      * @return the {@link MetricRegistry} for the current {@link Jenkins}
@@ -393,6 +413,7 @@ public class Metrics extends Plugin {
         private final Timer healthCheckDuration = new Timer();
 
         private SortedMap<String, HealthCheck.Result> healthCheckResults = new TreeMap<String, HealthCheck.Result>();
+        private long healthCheckResultMillis;
 
         private final Gauge<Integer> healthCheckCount = new Gauge<Integer>() {
             public Integer getValue() {
@@ -424,6 +445,10 @@ public class Metrics extends Plugin {
         @WithBridgeMethods(Map.class)
         public SortedMap<String, HealthCheck.Result> getHealthCheckResults() {
             return healthCheckResults;
+        }
+
+        public long getHealthCheckResultMillis() {
+            return healthCheckResultMillis;
         }
 
         public Gauge<Integer> getHealthCheckCount() {
@@ -543,6 +568,7 @@ public class Metrics extends Plugin {
             }
             // delete any result whose health check had been removed
             healthCheckResults.keySet().retainAll(results.keySet());
+            healthCheckResultMillis = System.currentTimeMillis();
 
             score = total / ((double) count);
             Set<String> lastUnhealthy = this.lastUnhealthy;
