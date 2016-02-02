@@ -33,6 +33,7 @@ import com.codahale.metrics.Timer;
 import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheck.Result;
 import com.codahale.metrics.health.HealthCheckRegistry;
+import com.infradna.tool.bridge_method_injector.WithBridgeMethods;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
 import jenkins.metrics.impl.MetricsFilter;
@@ -58,7 +59,6 @@ import org.kohsuke.stapler.HttpResponse;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
@@ -160,7 +160,7 @@ public class Metrics extends Plugin {
             LOGGER.warning("Unable to get health check results, HealthChecker is not available");
             return new TreeMap<String, Result>();
         }
-        return healthChecker.getSortedHealthCheckResults();
+        return healthChecker.getHealthCheckResults();
     }
 
     /**
@@ -421,11 +421,8 @@ public class Metrics extends Plugin {
             return healthCheckDuration;
         }
 
-        public Map<String, HealthCheck.Result> getHealthCheckResults() {
-            return getSortedHealthCheckResults();
-        }
-
-        public SortedMap<String, HealthCheck.Result> getSortedHealthCheckResults() {
+        @WithBridgeMethods(Map.class)
+        public SortedMap<String, HealthCheck.Result> getHealthCheckResults() {
             return healthCheckResults;
         }
 
