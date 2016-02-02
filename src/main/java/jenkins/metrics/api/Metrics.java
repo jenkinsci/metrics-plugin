@@ -36,6 +36,7 @@ import com.codahale.metrics.health.HealthCheckRegistry;
 import com.infradna.tool.bridge_method_injector.WithBridgeMethods;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
+import javax.annotation.concurrent.ThreadSafe;
 import jenkins.metrics.impl.MetricsFilter;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
@@ -168,19 +169,19 @@ public class Metrics extends Plugin {
      *
      * @return the number of milliseconds since January 1, 1970 GMT or {@literal -1}.
      */
-    @Nonnull
-    public static long getHealthCheckResultMillis() {
+    @CheckForNull
+    public static HealthCheckData getHealthCheckData() {
         Jenkins jenkins = Jenkins.getInstance();
         if (jenkins == null) {
             LOGGER.warning("Unable to get health check results, client master is not ready (startup or shutdown)");
-            return -1;
+            return null;
         }
         HealthChecker healthChecker = jenkins.getExtensionList(PeriodicWork.class).get(HealthChecker.class);
         if (healthChecker == null) {
             LOGGER.warning("Unable to get health check results, HealthChecker is not available");
-            return -1;
+            return null;
         }
-        return healthChecker.getHealthCheckResultMillis();
+        return healthChecker.getHealthCheckData();
     }
 
     /**
@@ -412,8 +413,7 @@ public class Metrics extends Plugin {
 
         private final Timer healthCheckDuration = new Timer();
 
-        private SortedMap<String, HealthCheck.Result> healthCheckResults = new TreeMap<String, HealthCheck.Result>();
-        private long healthCheckResultMillis;
+        private HealthCheckData healthCheckData = null;
 
         private final Gauge<Integer> healthCheckCount = new Gauge<Integer>() {
             public Integer getValue() {
@@ -444,11 +444,11 @@ public class Metrics extends Plugin {
 
         @WithBridgeMethods(Map.class)
         public SortedMap<String, HealthCheck.Result> getHealthCheckResults() {
-            return healthCheckResults;
+            return healthCheckData == null ? new TreeMap<String, Result>() : healthCheckData.results;
         }
 
         public long getHealthCheckResultMillis() {
-            return healthCheckResultMillis;
+            return healthCheckData == null ? -1 : healthCheckData.getLastModified();
         }
 
         public Gauge<Integer> getHealthCheckCount() {
@@ -546,6 +546,7 @@ public class Metrics extends Plugin {
             } finally {
                 context.stop();
             }
+            healthCheckData = new HealthCheckData(results, getRecurrencePeriod());
             listener.getLogger().println("Health check results at " + new Date() + ":");
             Set<String> unhealthy = null;
             Set<String> unhealthyName = null;
@@ -554,7 +555,6 @@ public class Metrics extends Plugin {
             for (Map.Entry<String, HealthCheck.Result> e : results.entrySet()) {
                 count++;
                 listener.getLogger().println(" * " + e.getKey() + ": " + e.getValue());
-                healthCheckResults.put(e.getKey(), e.getValue());
                 if (e.getValue().isHealthy()) {
                     total++;
                 } else {
@@ -567,8 +567,6 @@ public class Metrics extends Plugin {
                 }
             }
             // delete any result whose health check had been removed
-            healthCheckResults.keySet().retainAll(results.keySet());
-            healthCheckResultMillis = System.currentTimeMillis();
 
             score = total / ((double) count);
             Set<String> lastUnhealthy = this.lastUnhealthy;
@@ -585,6 +583,36 @@ public class Metrics extends Plugin {
             } else if (lastUnhealthy != null) {
                 LOGGER.log(Level.INFO, "All health checks are reporting as healthy");
             }
+        }
+
+        @CheckForNull
+        public HealthCheckData getHealthCheckData() {
+            return healthCheckData;
+        }
+    }
+
+    @ThreadSafe
+    public static class HealthCheckData {
+        private final long lastModified;
+        private final long expires;
+        private final SortedMap<String, HealthCheck.Result> results;
+
+        public HealthCheckData(SortedMap<String, Result> results, long nextMillis) {
+            this.results = results;
+            this.lastModified = System.currentTimeMillis();
+            this.expires = lastModified + nextMillis;
+        }
+
+        public long getLastModified() {
+            return lastModified;
+        }
+
+        public long getExpires() {
+            return expires;
+        }
+
+        public SortedMap<String, Result> getResults() {
+            return results;
         }
     }
 

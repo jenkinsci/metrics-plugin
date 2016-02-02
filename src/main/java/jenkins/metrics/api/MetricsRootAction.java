@@ -160,10 +160,16 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
         Metrics.checkAccessKeyHealthCheck(key);
         long ifModifiedSince = req.getDateHeader("If-Modified-Since");
-        if (ifModifiedSince != -1 && Metrics.getHealthCheckResultMillis() < ifModifiedSince) {
+        Metrics.HealthCheckData data = Metrics.getHealthCheckData();
+        if (data == null) {
+            // TODO block until the result is available
+            return Metrics.cors(key, HttpResponses.status(HttpServletResponse.SC_SERVICE_UNAVAILABLE));
+        }
+        // TODO Max-Age header
+        if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
             return Metrics.cors(key, HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED));
         }
-        return Metrics.cors(key, new HealthCheckResponse(Metrics.getHealthCheckResults()));
+        return Metrics.cors(key, new HealthCheckResponse(data));
     }
 
     /**
@@ -179,10 +185,15 @@ public class MetricsRootAction implements UnprotectedRootAction {
      */
     public HttpResponse doHealthcheckOk(StaplerRequest req) {
         long ifModifiedSince = req.getDateHeader("If-Modified-Since");
-        if (ifModifiedSince != -1 && Metrics.getHealthCheckResultMillis() < ifModifiedSince) {
+        Metrics.HealthCheckData data = Metrics.getHealthCheckData();
+        if (data == null) {
+            // TODO perhaps block until the result is available
+            return HttpResponses.status(503);
+        }
+        if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
             return HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED);
         }
-        SortedMap<String, HealthCheck.Result> checks =  Metrics.getHealthCheckResults();
+        SortedMap<String, HealthCheck.Result> checks =  data.getResults();
         boolean allOk = true;
         for(Map.Entry<String, HealthCheck.Result> entry: checks.entrySet()){
             HealthCheck.Result result = entry.getValue();
@@ -421,10 +432,16 @@ public class MetricsRootAction implements UnprotectedRootAction {
         @Restricted(NoExternalUse.class) // only for use by stapler web binding
         public HttpResponse doHealthcheck(StaplerRequest req) {
             long ifModifiedSince = req.getDateHeader("If-Modified-Since");
-            if (ifModifiedSince != -1 && Metrics.getHealthCheckResultMillis() < ifModifiedSince) {
+            Metrics.HealthCheckData data = Metrics.getHealthCheckData();
+            if (data == null) {
+                // TODO block until the result is available
+                return HttpResponses.status(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+            }
+            // TODO Max-Age header
+            if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
                 return HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED);
             }
-            return new HealthCheckResponse(Metrics.getHealthCheckResults());
+            return new HealthCheckResponse(data);
         }
 
         /**
@@ -499,19 +516,22 @@ public class MetricsRootAction implements UnprotectedRootAction {
         private static final String JSONP_CONTENT_TYPE = "text/javascript";
         private static final String JSON_CONTENT_TYPE = "application/json";
         private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
-        private final SortedMap<String, HealthCheck.Result> results;
+        private final Metrics.HealthCheckData data;
 
-        public HealthCheckResponse(SortedMap<String, HealthCheck.Result> results) {
-            this.results = results;
+        public HealthCheckResponse(Metrics.HealthCheckData data) {
+            this.data = data;
         }
 
         public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
             String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
-            resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            resp.setHeader(CACHE_CONTROL, String.format("must-revalidate,private,max-age=%d",
+                    TimeUnit.MILLISECONDS.toSeconds(data.getExpires() - System.currentTimeMillis())));
             resp.setContentType(jsonp ? JSONP_CONTENT_TYPE : JSON_CONTENT_TYPE);
+            resp.setDateHeader("Last-Modified", data.getLastModified());
+            resp.setDateHeader("Expires", data.getExpires());
+            SortedMap<String, HealthCheck.Result> results = data.getResults();
             if (results.isEmpty()) {
                 resp.setStatus(HttpServletResponse.SC_NOT_IMPLEMENTED);
             } else {
