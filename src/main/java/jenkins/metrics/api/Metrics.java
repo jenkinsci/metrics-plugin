@@ -297,9 +297,12 @@ public class Metrics extends Plugin {
         }
         for (HealthCheckProvider p : Jenkins.getInstance().getExtensionList(HealthCheckProvider.class)) {
             LOGGER.log(Level.FINER, "Registering health check provider {0} (type {1})", new Object[]{p, p.getClass()});
-            for (Map.Entry<String, HealthCheck> c : p.getHealthChecks().entrySet()) {
+            Map<String, HealthCheck> healthChecks = p.getHealthChecks();
+            for (Map.Entry<String, HealthCheck> c : healthChecks.entrySet()) {
                 plugin.healthCheckRegistry.register(c.getKey(), c.getValue());
             }
+            LOGGER.log(Level.FINER, "Registered health check provider {0} (type {1}) with {2} checks: {3}",
+                    new Object[] { p, p.getClass(), healthChecks.size(), healthChecks.keySet() });
         }
         threadPoolForHealthChecks = new HealthChecksThreadPool(healthCheckRegistry());
         LOGGER.log(Level.FINE, "Metric provider and health check provider extensions registered");
