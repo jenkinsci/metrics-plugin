@@ -594,7 +594,7 @@ public class Metrics extends Plugin {
     @ThreadSafe
     public static class HealthCheckData {
         private final long lastModified;
-        private final long expires;
+        private final Long expires;
         private final SortedMap<String, HealthCheck.Result> results;
 
         public HealthCheckData(SortedMap<String, Result> results, long nextMillis) {
@@ -603,11 +603,17 @@ public class Metrics extends Plugin {
             this.expires = lastModified + nextMillis;
         }
 
+        public HealthCheckData(SortedMap<String, Result> results) {
+            this.results = results;
+            this.lastModified = System.currentTimeMillis();
+            this.expires = null;
+        }
+
         public long getLastModified() {
             return lastModified;
         }
 
-        public long getExpires() {
+        public Long getExpires() {
             return expires;
         }
 

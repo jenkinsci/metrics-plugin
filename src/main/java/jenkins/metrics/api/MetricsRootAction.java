@@ -54,6 +54,7 @@ import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -61,6 +62,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import javax.servlet.ServletException;
@@ -160,13 +163,11 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
         Metrics.checkAccessKeyHealthCheck(key);
         long ifModifiedSince = req.getDateHeader("If-Modified-Since");
+        long maxAge = getCacheControlMaxAge(req);
         Metrics.HealthCheckData data = Metrics.getHealthCheckData();
-        if (data == null) {
-            // TODO block until the result is available
-            return Metrics.cors(key, HttpResponses.status(HttpServletResponse.SC_SERVICE_UNAVAILABLE));
-        }
-        // TODO Max-Age header
-        if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
+        if (data == null || (maxAge != -1 && data.getLastModified() + maxAge < System.currentTimeMillis())) {
+            data = new Metrics.HealthCheckData(Metrics.healthCheckRegistry().runHealthChecks());
+        } else if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
             return Metrics.cors(key, HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED));
         }
         return Metrics.cors(key, new HealthCheckResponse(data));
@@ -185,24 +186,33 @@ public class MetricsRootAction implements UnprotectedRootAction {
      */
     public HttpResponse doHealthcheckOk(StaplerRequest req) {
         long ifModifiedSince = req.getDateHeader("If-Modified-Since");
+        long maxAge = getCacheControlMaxAge(req);
         Metrics.HealthCheckData data = Metrics.getHealthCheckData();
-        if (data == null) {
-            // TODO perhaps block until the result is available
-            return HttpResponses.status(200);
-        }
-        if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
+        if (data == null || (maxAge != -1 && data.getLastModified() + maxAge < System.currentTimeMillis())) {
+            data = new Metrics.HealthCheckData(Metrics.healthCheckRegistry().runHealthChecks());
+        } else if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
             return HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED);
         }
-        SortedMap<String, HealthCheck.Result> checks =  data.getResults();
-        boolean allOk = true;
-        for(Map.Entry<String, HealthCheck.Result> entry: checks.entrySet()){
-            HealthCheck.Result result = entry.getValue();
-            if(!result.isHealthy()){
-                allOk = false;
-                break;
+        for (HealthCheck.Result result : data.getResults().values()) {
+            if (!result.isHealthy()) {
+                return new StatusResponse(HttpServletResponse.SC_SERVICE_UNAVAILABLE, data.getLastModified(), data.getExpires());
             }
         }
-        return HttpResponses.status(allOk ? 200 : 503);
+        return new StatusResponse(HttpServletResponse.SC_OK, data.getLastModified(), data.getExpires());
+    }
+
+    private static long getCacheControlMaxAge(StaplerRequest req) {
+        long maxAge = -1;
+        if (req.getHeader("Cache-Control") != null) {
+            Pattern pattern = Pattern.compile("[\\s,]?max-age=(\\d+)[\\s,]?");
+            for (String value : Collections.list((Enumeration<String>) req.getHeaders("Cache-Control"))) {
+                Matcher matcher = pattern.matcher(value);
+                while (matcher.find()) {
+                    maxAge = TimeUnit.SECONDS.toMillis(Long.parseLong(matcher.group(1)));
+                }
+            }
+        }
+        return maxAge;
     }
 
     public HttpResponse doMetrics(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
@@ -260,6 +270,40 @@ public class MetricsRootAction implements UnprotectedRootAction {
             } finally {
                 writer.close();
             }
+        }
+    }
+
+    private static class StatusResponse implements HttpResponse {
+        private static final String CACHE_CONTROL = "Cache-Control";
+        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
+
+        private final int code;
+        private final long lastModified;
+        private final Long expires;
+
+        public StatusResponse(int code, long lastModified) {
+            this.code = code;
+            this.lastModified = lastModified;
+            this.expires = null;
+        }
+
+        public StatusResponse(int code, long lastModified, Long expires) {
+            this.code = code;
+            this.lastModified = lastModified;
+            this.expires = expires;
+        }
+
+        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+                ServletException {
+            resp.setStatus(code);
+            if (expires == null) {
+                resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            } else {
+                resp.setHeader(CACHE_CONTROL, String.format("must-revalidate,private,max-age=%d",
+                        TimeUnit.MILLISECONDS.toSeconds(expires - System.currentTimeMillis())));
+                resp.setDateHeader("Expires", expires);
+            }
+            resp.setDateHeader("Last-Modified", lastModified);
         }
     }
 
@@ -432,13 +476,12 @@ public class MetricsRootAction implements UnprotectedRootAction {
         @Restricted(NoExternalUse.class) // only for use by stapler web binding
         public HttpResponse doHealthcheck(StaplerRequest req) {
             long ifModifiedSince = req.getDateHeader("If-Modified-Since");
+            long maxAge = getCacheControlMaxAge(req);
             Metrics.HealthCheckData data = Metrics.getHealthCheckData();
-            if (data == null) {
-                // TODO block until the result is available
-                return HttpResponses.status(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
-            }
-            // TODO Max-Age header
-            if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
+            if (data == null || (maxAge != -1 && data.getLastModified() + maxAge < System.currentTimeMillis())) {
+                // if the max-age was specified, get live data
+                data = new Metrics.HealthCheckData(Metrics.healthCheckRegistry().runHealthChecks());
+            } else if (ifModifiedSince != -1 && data.getLastModified() < ifModifiedSince) {
                 return HttpResponses.status(HttpServletResponse.SC_NOT_MODIFIED);
             }
             return new HealthCheckResponse(data);
@@ -516,6 +559,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         private static final String JSONP_CONTENT_TYPE = "text/javascript";
         private static final String JSON_CONTENT_TYPE = "application/json";
         private static final String CACHE_CONTROL = "Cache-Control";
+        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
         private final Metrics.HealthCheckData data;
 
         public HealthCheckResponse(Metrics.HealthCheckData data) {
@@ -526,11 +570,16 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
             String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
-            resp.setHeader(CACHE_CONTROL, String.format("must-revalidate,private,max-age=%d",
-                    TimeUnit.MILLISECONDS.toSeconds(data.getExpires() - System.currentTimeMillis())));
             resp.setContentType(jsonp ? JSONP_CONTENT_TYPE : JSON_CONTENT_TYPE);
+            Long expires = data.getExpires();
+            if (expires == null) {
+                resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            } else {
+                resp.setHeader(CACHE_CONTROL, String.format("must-revalidate,private,max-age=%d",
+                        TimeUnit.MILLISECONDS.toSeconds(expires - System.currentTimeMillis())));
+                resp.setDateHeader("Expires", expires);
+            }
             resp.setDateHeader("Last-Modified", data.getLastModified());
-            resp.setDateHeader("Expires", data.getExpires());
             SortedMap<String, HealthCheck.Result> results = data.getResults();
             if (results.isEmpty()) {
                 resp.setStatus(HttpServletResponse.SC_NOT_IMPLEMENTED);
