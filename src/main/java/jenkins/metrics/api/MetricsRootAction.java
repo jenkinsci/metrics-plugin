@@ -38,7 +38,6 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
-import edu.umd.cs.findbugs.annotations.SuppressWarnings;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.PeriodicWork;
@@ -84,18 +83,68 @@ import org.kohsuke.stapler.interceptor.RequirePOST;
 import static com.codahale.metrics.MetricRegistry.name;
 
 /**
- * @author Stephen Connolly
+ * Root action that exposes the metrics via the REST UI.
  */
 @Extension
 public class MetricsRootAction implements UnprotectedRootAction {
 
+    /**
+     * The time units to express rates in, that is all rates are events per minute.
+     */
     public static final TimeUnit RATE_UNIT = TimeUnit.MINUTES;
+    /**
+     * The time unit to express durations in, that is all durations are in seconds.
+     */
     public static final TimeUnit DURATION_UNIT = TimeUnit.SECONDS;
+    /**
+     * The {@code Cache-Control} header name.
+     */
+    private static final String CACHE_CONTROL = "Cache-Control";
+    /**
+     * Regex to parse the {@code max-age=...} component of a {@code Cache-Control} HTTP request header.
+     */
+    private static final Pattern CACHE_CONTROL_MAX_AGE = Pattern.compile("[\\s,]?max-age=(\\d+)[\\s,]?");
+    /**
+     * The {@code Cache-Control} directive to indicate no caching.
+     */
+    private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
+    /**
+     * The {@link String#format(String,Object...)} format for a {@code Cache-Control} directive to indicate caching
+     * with a max-age.
+     */
+    private static final String MAX_AGE = "must-revalidate,private,max-age=%d";
+    /**
+     * The {@code Content-Type} for plain text.
+     */
+    private static final String PLAIN_TEXT_CONTENT_TYPE = "text/plain";
+    /**
+     * The {@code Content-Type} for JSONP.
+     */
+    private static final String JSONP_CONTENT_TYPE = "text/javascript";
+    /**
+     * The {@code Content-Type} for JSON.
+     */
+    private static final String JSON_CONTENT_TYPE = "application/json";
+    /**
+     * Singleton instance to bind to the {@code /currentUser} URL
+     */
     private final Pseudoservlet currentUser = new CurrentUserPseudoservlet();
+    /**
+     * The {@link ObjectMapper} to use when converting health checks to JSON.
+     */
     private final ObjectMapper healthCheckMapper = new ObjectMapper().registerModule(new HealthCheckModule());
+    /**
+     * The {@link ObjectMapper} to use when converting metrics to JSON.
+     */
     private final ObjectMapper metricsMapper =
             new ObjectMapper().registerModule(new MetricsModule(RATE_UNIT, DURATION_UNIT, true));
 
+    /**
+     * Utility method to check if health check results are all reporting healthy.
+     *
+     * @param results the results.
+     * @return {@code true} if all are healthy.
+     */
     private static boolean isAllHealthy(Map<String, HealthCheck.Result> results) {
         for (HealthCheck.Result result : results.values()) {
             if (!result.isHealthy()) {
@@ -105,6 +154,14 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return true;
     }
 
+    /**
+     * Utility wrapper to construct the writer to use for a {@link HttpServletResponse} based on the
+     * {@link HttpServletRequest}.
+     *
+     * @param mapper  the {@link ObjectMapper} to use.
+     * @param request the {@link HttpServletRequest} to respond to.
+     * @return the {@link ObjectWriter} to use for the response.
+     */
     private static ObjectWriter getWriter(ObjectMapper mapper, HttpServletRequest request) {
         final boolean prettyPrint = Boolean.parseBoolean(request.getParameter("pretty"));
         if (prettyPrint) {
@@ -113,6 +170,13 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return mapper.writer();
     }
 
+    /**
+     * Utility method to check a request against the CORS requirements.
+     *
+     * @param req the request to check.
+     * @throws IllegalAccessException if the request is not a POST or OPTIONS (with Origin header) or a GET request
+     *                                with the appropriate authorization key.
+     */
     @SuppressWarnings("unchecked")
     private static void requireCorrectMethod(@NonNull StaplerRequest req) throws IllegalAccessException {
         if (!(req.getMethod().equals("POST")
@@ -123,8 +187,14 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
     }
 
+    /**
+     * Utility method to check if the request has an authorization key in the header.
+     *
+     * @param req the request.
+     * @return the authorization key or {@code null}.
+     */
     @CheckForNull
-    private static String getKeyFromAuthorizationHeader(@NonNull StaplerRequest req) throws IllegalAccessException {
+    private static String getKeyFromAuthorizationHeader(@NonNull StaplerRequest req) {
         for (Object o : Collections.list(req.getHeaders("Authorization"))) {
             if (o instanceof String && ((String) o).startsWith("Jenkins-Metrics-Key ")) {
                 return Util.fixEmptyAndTrim(((String) o).substring("Jenkins-Metrics-Key ".length()));
@@ -133,28 +203,81 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return null;
     }
 
+    /**
+     * Parses a {@link StaplerRequest} and extracts the {code max-age=...} directive from the client headers if present.
+     *
+     * @param req the request.
+     * @return the max-age (in milliseconds) or -1 if not present.
+     */
+    @SuppressWarnings("unchecked")
+    private static long getCacheControlMaxAge(StaplerRequest req) {
+        long maxAge = -1L;
+        for (String value : Collections.list((Enumeration<String>) req.getHeaders(CACHE_CONTROL))) {
+            Matcher matcher = CACHE_CONTROL_MAX_AGE.matcher(value);
+            while (matcher.find()) {
+                maxAge = TimeUnit.SECONDS.toMillis(Long.parseLong(matcher.group(1)));
+            }
+        }
+        return Math.max(-1L, maxAge);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public String getIconFileName() {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public String getDisplayName() {
         return null;
     }
 
+    /**
+     * {@inheritDoc}
+     */
     public String getUrlName() {
         return "metrics";
     }
 
+    /**
+     * Binds the {@link Pseudoservlet} for a metric access keys to the URL {@code /metrics/{key}}
+     *
+     * @param key the key.
+     * @return the {@link Pseudoservlet}
+     */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
     public Object getDynamic(final String key) {
         Metrics.checkAccessKey(key);
         return new AccessKeyPseudoservlet(key);
     }
 
+    /**
+     * Binds the {@link Pseudoservlet} for the current user to the URL {@code /metrics/currentUser}
+     *
+     * @return the {@link Pseudoservlet}
+     */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
     public Object getCurrentUser() {
         Jenkins.getInstance().checkPermission(Metrics.VIEW);
         return currentUser;
     }
 
+    /**
+     * Binds the health checks to the CORS aware URL {@code /metrics/healthcheck} where the metrics access key is
+     * provided in the form field {@code key} or an {@code Authorization: Jenkins-Metrics-Key {key}} header
+     *
+     * @param req the request
+     * @param key the key from the form field.
+     * @return the {@link HttpResponse}
+     * @throws IllegalAccessException if the access attempt is invalid.
+     */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
     public HttpResponse doHealthcheck(StaplerRequest req, @QueryParameter("key") String key)
             throws IllegalAccessException {
         requireCorrectMethod(req);
@@ -184,6 +307,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
      *
      * return status 200 if everything is OK, 503 (service unavailable) otherwise
      */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
     public HttpResponse doHealthcheckOk(StaplerRequest req) {
         long ifModifiedSince = req.getDateHeader("If-Modified-Since");
         long maxAge = getCacheControlMaxAge(req);
@@ -195,26 +320,24 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
         for (HealthCheck.Result result : data.getResults().values()) {
             if (!result.isHealthy()) {
-                return new StatusResponse(HttpServletResponse.SC_SERVICE_UNAVAILABLE, data.getLastModified(), data.getExpires());
+                return new StatusResponse(HttpServletResponse.SC_SERVICE_UNAVAILABLE, data.getLastModified(),
+                        data.getExpires());
             }
         }
         return new StatusResponse(HttpServletResponse.SC_OK, data.getLastModified(), data.getExpires());
     }
 
-    private static long getCacheControlMaxAge(StaplerRequest req) {
-        long maxAge = -1;
-        if (req.getHeader("Cache-Control") != null) {
-            Pattern pattern = Pattern.compile("[\\s,]?max-age=(\\d+)[\\s,]?");
-            for (String value : Collections.list((Enumeration<String>) req.getHeaders("Cache-Control"))) {
-                Matcher matcher = pattern.matcher(value);
-                while (matcher.find()) {
-                    maxAge = TimeUnit.SECONDS.toMillis(Long.parseLong(matcher.group(1)));
-                }
-            }
-        }
-        return maxAge;
-    }
-
+    /**
+     * Binds the metrics to the CORS aware URL {@code /metrics/metrics} where the metrics access key is
+     * provided in the form field {@code key} or an {@code Authorization: Jenkins-Metrics-Key {key}} header
+     *
+     * @param req the request
+     * @param key the key from the form field.
+     * @return the {@link HttpResponse}
+     * @throws IllegalAccessException if the access attempt is invalid.
+     */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
     public HttpResponse doMetrics(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
@@ -224,8 +347,22 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return Metrics.cors(key, new MetricsResponse(Metrics.metricRegistry()));
     }
 
+    /**
+     * Binds the metrics history to the CORS aware URL {@code /metrics/metricsHistory} where the metrics access key is
+     * provided in the form field {@code key} or an {@code Authorization: Jenkins-Metrics-Key {key}} header
+     *
+     * @param req the request
+     * @param key the key from the form field.
+     * @return the {@link HttpResponse}
+     * @throws IllegalAccessException if the access attempt is invalid.
+     */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
     public HttpResponse doMetricsHistory(StaplerRequest req, @QueryParameter("key") String key)
             throws IllegalAccessException {
+        if (!Sampler.isEnabled()) {
+            return HttpResponses.notFound();
+        }
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
             key = getKeyFromAuthorizationHeader(req);
@@ -234,6 +371,17 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return Metrics.cors(key, new MetricsHistoryResponse());
     }
 
+    /**
+     * Binds the ping check to the CORS aware URL {@code /metrics/ping} where the metrics access key is
+     * provided in the form field {@code key} or an {@code Authorization: Jenkins-Metrics-Key {key}} header
+     *
+     * @param req the request
+     * @param key the key from the form field.
+     * @return the {@link HttpResponse}
+     * @throws IllegalAccessException if the access attempt is invalid.
+     */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
     public HttpResponse doPing(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
@@ -243,6 +391,17 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return Metrics.cors(key, new PingResponse());
     }
 
+    /**
+     * Binds the thread dump to the CORS aware URL {@code /metrics/threads} where the metrics access key is
+     * provided in the form field {@code key} or an {@code Authorization: Jenkins-Metrics-Key {key}} header
+     *
+     * @param req the request
+     * @param key the key from the form field.
+     * @return the {@link HttpResponse}
+     * @throws IllegalAccessException if the access attempt is invalid.
+     */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
     @RequirePOST
     public HttpResponse doThreads(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
         requireCorrectMethod(req);
@@ -253,215 +412,6 @@ public class MetricsRootAction implements UnprotectedRootAction {
         return Metrics.cors(key, new ThreadDumpResponse(new ThreadDump(ManagementFactory.getThreadMXBean())));
     }
 
-    private static class PingResponse implements HttpResponse {
-        private static final String CONTENT_TYPE = "text/plain";
-        private static final String CONTENT = "pong";
-        private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
-
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
-                ServletException {
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.setHeader(CACHE_CONTROL, NO_CACHE);
-            resp.setContentType(CONTENT_TYPE);
-            final PrintWriter writer = resp.getWriter();
-            try {
-                writer.println(CONTENT);
-            } finally {
-                writer.close();
-            }
-        }
-    }
-
-    private static class StatusResponse implements HttpResponse {
-        private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
-
-        private final int code;
-        private final long lastModified;
-        private final Long expires;
-
-        public StatusResponse(int code, long lastModified) {
-            this.code = code;
-            this.lastModified = lastModified;
-            this.expires = null;
-        }
-
-        public StatusResponse(int code, long lastModified, Long expires) {
-            this.code = code;
-            this.lastModified = lastModified;
-            this.expires = expires;
-        }
-
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
-                ServletException {
-            resp.setStatus(code);
-            if (expires == null) {
-                resp.setHeader(CACHE_CONTROL, NO_CACHE);
-            } else {
-                resp.setHeader(CACHE_CONTROL, String.format("must-revalidate,private,max-age=%d",
-                        TimeUnit.MILLISECONDS.toSeconds(expires - System.currentTimeMillis())));
-                resp.setDateHeader("Expires", expires);
-            }
-            resp.setDateHeader("Last-Modified", lastModified);
-        }
-    }
-
-    private static class ThreadDumpResponse implements HttpResponse {
-        private static final String CONTENT_TYPE = "text/plain";
-        private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
-        private final ThreadDump threadDump;
-
-        public ThreadDumpResponse(ThreadDump threadDump) {
-            this.threadDump = threadDump;
-        }
-
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
-                ServletException {
-            resp.setStatus(HttpServletResponse.SC_OK);
-            resp.setHeader(CACHE_CONTROL, NO_CACHE);
-            resp.setContentType(CONTENT_TYPE);
-            final OutputStream output = resp.getOutputStream();
-            try {
-                threadDump.dump(output);
-            } finally {
-                output.close();
-            }
-        }
-    }
-
-    @Extension
-    public static class Sampler extends PeriodicWork {
-
-        private static final Set<String> METRIC_FIELD_NAMES = Collections.unmodifiableSet(
-                new HashSet<String>(Arrays.asList("gauges", "counters", "histograms", "meters", "timers"))
-        );
-        private final ExponentialLeakyBucket<Sample> bucket = new ExponentialLeakyBucket<Sample>(128, 0.005);
-        private final ObjectMapper mapper;
-
-        public Sampler() {
-            mapper = new ObjectMapper();
-            mapper.registerModule(new MetricsModule(RATE_UNIT, DURATION_UNIT, false));
-        }
-
-        /**
-         * Rewrites a json node so that all its immediate fields have the prefix and postfix applied
-         *
-         * @param json    the object to rewrite
-         * @param prefix  the prefix to apply
-         * @param postfix the postfix to apply
-         * @return the rewritten object
-         */
-        private static JsonNode renameFields(JsonNode json, String prefix, String postfix) {
-            if ((prefix == null && postfix == null) || !json.isObject()) {
-                return json;
-            }
-            ObjectNode result = JsonNodeFactory.instance.objectNode();
-            for (Iterator<Map.Entry<String, JsonNode>> fieldIterator = json.fields(); fieldIterator.hasNext(); ) {
-                final Map.Entry<String, JsonNode> field = fieldIterator.next();
-                result.put(name(prefix, field.getKey(), postfix), field.getValue());
-            }
-            return result;
-        }
-
-        private static JsonNode rewrite(JsonNode json, String prefix, String postfix) {
-            if ((prefix == null && postfix == null) || !json.isObject()) {
-                return json;
-            }
-            ObjectNode result = JsonNodeFactory.instance.objectNode();
-            for (Iterator<Map.Entry<String, JsonNode>> i = json.fields(); i.hasNext(); ) {
-                final Map.Entry<String, JsonNode> entry = i.next();
-                final String fieldName = entry.getKey();
-                if (METRIC_FIELD_NAMES.contains(fieldName)) {
-                    result.put(fieldName, renameFields(entry.getValue(), prefix, postfix));
-                } else {
-                    // pass-through
-                    result.put(fieldName, entry.getValue());
-                }
-
-            }
-            return result;
-        }
-
-        public Map<Date, Object> sample() {
-            Map<Date, Object> result = new TreeMap<Date, Object>();
-            ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
-            for (Sample s : bucket.values()) {
-                JsonNode value = s.getValue(reader);
-                if (value != null) {
-                    result.put(s.getTime(), value);
-                }
-            }
-            return result;
-        }
-
-        public Map<Date, Object> sample(String prefix, String postfix) {
-            Map<Date, Object> result = new TreeMap<Date, Object>();
-            ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
-            for (Sample s : bucket.values()) {
-                JsonNode value = s.getValue(reader);
-                if (value != null) {
-                    result.put(s.getTime(), rewrite(value, prefix, postfix));
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public long getRecurrencePeriod() {
-            return TimeUnit.SECONDS.toMillis(30);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            ObjectWriter writer = mapper.writer();
-            ByteArrayOutputStream baos = new ByteArrayOutputStream(8192);
-            try {
-                GZIPOutputStream gzos = null;
-                try {
-                    gzos = new GZIPOutputStream(baos);
-                    writer.writeValue(gzos, Metrics.metricRegistry());
-                } finally {
-                    IOUtils.closeQuietly(gzos);
-                }
-            } finally {
-                baos.close();
-            }
-            bucket.add(new Sample(System.currentTimeMillis(), baos.toByteArray()));
-        }
-
-        @SuppressWarnings(value = "EI_EXPOSE_REP2")
-        public static class Sample {
-            private final long t;
-            private final byte[] v;
-
-            public Sample(long t, byte[] v) {
-                this.t = t;
-                this.v = v;
-            }
-
-            public Date getTime() {
-                return new Date(t);
-            }
-
-            public JsonNode getValue(ObjectReader reader) {
-                GZIPInputStream gzis = null;
-                try {
-                    gzis = new GZIPInputStream(new ByteArrayInputStream(v));
-                    return reader.readTree(gzis);
-                } catch (JsonProcessingException e) {
-                    return null;
-                } catch (IOException e) {
-                    return null;
-                } finally {
-                    IOUtils.closeQuietly(gzis);
-                }
-            }
-        }
-
-    }
-
     /**
      * A binding of the standard dropwizard metrics servlet into the stapler API
      */
@@ -470,6 +420,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
         /**
          * Web binding for {@literal /healthcheck}
+         *
          * @param req the request
          * @return the response
          */
@@ -504,6 +455,9 @@ public class MetricsRootAction implements UnprotectedRootAction {
          */
         @Restricted(NoExternalUse.class) // only for use by stapler web binding
         public HttpResponse doMetricsHistory() {
+            if (!Sampler.isEnabled()) {
+                return HttpResponses.notFound();
+            }
             return new MetricsHistoryResponse();
         }
 
@@ -555,17 +509,126 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
     }
 
+    /**
+     * A PING response.
+     */
+    private static class PingResponse implements HttpResponse {
+        /**
+         * The content of the response.
+         */
+        private static final String CONTENT = "pong";
+
+        /**
+         * {@inheritDoc}
+         */
+        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+                ServletException {
+            resp.setStatus(HttpServletResponse.SC_OK);
+            resp.setHeader(MetricsRootAction.CACHE_CONTROL, MetricsRootAction.NO_CACHE);
+            resp.setContentType(PLAIN_TEXT_CONTENT_TYPE);
+            final PrintWriter writer = resp.getWriter();
+            try {
+                writer.println(CONTENT);
+            } finally {
+                writer.close();
+            }
+        }
+    }
+
+    /**
+     * A variant of {@link HttpResponses#status(int)} that supports the {@code Last-Modified} and {@code Expires}
+     * headers.
+     */
+    private static class StatusResponse implements HttpResponse {
+
+        /**
+         * The status code.
+         */
+        private final int code;
+        /**
+         * The last modified.
+         */
+        private final long lastModified;
+        /**
+         * The expires time header to set (or {@code null})
+         */
+        @CheckForNull
+        private final Long expires;
+
+        public StatusResponse(int code, long lastModified, @CheckForNull Long expires) {
+            this.code = code;
+            this.lastModified = lastModified;
+            this.expires = expires;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+                ServletException {
+            resp.setStatus(code);
+            if (expires == null) {
+                resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            } else {
+                resp.setHeader(CACHE_CONTROL, String.format(MAX_AGE,
+                        TimeUnit.MILLISECONDS.toSeconds(expires - System.currentTimeMillis())));
+                resp.setDateHeader("Expires", expires);
+            }
+            resp.setDateHeader("Last-Modified", lastModified);
+        }
+    }
+
+    /**
+     * A thead dump response.
+     */
+    private static class ThreadDumpResponse implements HttpResponse {
+        /**
+         * The thread dump.
+         */
+        private final ThreadDump threadDump;
+
+        public ThreadDumpResponse(ThreadDump threadDump) {
+            this.threadDump = threadDump;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+                ServletException {
+            resp.setStatus(HttpServletResponse.SC_OK);
+            resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            resp.setContentType(PLAIN_TEXT_CONTENT_TYPE);
+            final OutputStream output = resp.getOutputStream();
+            try {
+                threadDump.dump(output);
+            } finally {
+                output.close();
+            }
+        }
+    }
+
+    /**
+     * A health check response.
+     */
     private class HealthCheckResponse implements HttpResponse {
-        private static final String JSONP_CONTENT_TYPE = "text/javascript";
-        private static final String JSON_CONTENT_TYPE = "application/json";
-        private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
+        /**
+         * The health check data.
+         */
+        @NonNull
         private final Metrics.HealthCheckData data;
 
-        public HealthCheckResponse(Metrics.HealthCheckData data) {
+        /**
+         * Constructor.
+         * @param data the data.
+         */
+        public HealthCheckResponse(@NonNull Metrics.HealthCheckData data) {
             this.data = data;
         }
 
+        /**
+         * {@inheritDoc}
+         */
         public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
@@ -575,7 +638,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
             if (expires == null) {
                 resp.setHeader(CACHE_CONTROL, NO_CACHE);
             } else {
-                resp.setHeader(CACHE_CONTROL, String.format("must-revalidate,private,max-age=%d",
+                resp.setHeader(CACHE_CONTROL, String.format(MAX_AGE,
                         TimeUnit.MILLISECONDS.toSeconds(expires - System.currentTimeMillis())));
                 resp.setDateHeader("Expires", expires);
             }
@@ -607,17 +670,26 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
     }
 
+    /**
+     * A metrics response.
+     */
     private class MetricsResponse implements HttpResponse {
-        private static final String JSONP_CONTENT_TYPE = "text/javascript";
-        private static final String JSON_CONTENT_TYPE = "application/json";
-        private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
+        /**
+         * The registry to provide the response from.
+         */
         private final MetricRegistry registry;
 
+        /**
+         * Constructor.
+         * @param registry the registry.
+         */
         private MetricsResponse(MetricRegistry registry) {
             this.registry = registry;
         }
 
+        /**
+         * {@inheritDoc}
+         */
         public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
@@ -647,12 +719,14 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
     }
 
+    /**
+     * A metrics history response.
+     */
     private class MetricsHistoryResponse implements HttpResponse {
-        private static final String JSONP_CONTENT_TYPE = "text/javascript";
-        private static final String JSON_CONTENT_TYPE = "application/json";
-        private static final String CACHE_CONTROL = "Cache-Control";
-        private static final String NO_CACHE = "must-revalidate,no-cache,no-store";
 
+        /**
+         * {@inheritDoc}
+         */
         public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
@@ -765,6 +839,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
 
         /**
          * Constructor.
+         *
          * @param key the access key.
          */
         public AccessKeyPseudoservlet(String key) {
@@ -821,4 +896,203 @@ public class MetricsRootAction implements UnprotectedRootAction {
             return Metrics.cors(key, super.doThreads());
         }
     }
+
+    /**
+     * Sampler that captures an exponential sample of metrics snapshots.
+     */
+    @Extension
+    public static class Sampler extends PeriodicWork {
+
+        /**
+         * The field names that need rewriting of their immediate children.
+         */
+        private static final Set<String> METRIC_FIELD_NAMES = Collections.unmodifiableSet(
+                new HashSet<String>(Arrays.asList("gauges", "counters", "histograms", "meters", "timers"))
+        );
+        /**
+         * The size of the sampler, negative values will disable the sampler completely.
+         */
+        private static final int SIZE = Integer.getInteger(MetricsRootAction.class.getName()+".Sampler.SIZE", 128);
+        /**
+         * The bucket to retain history.
+         */
+        private final ExponentialLeakyBucket<Sample> bucket = new ExponentialLeakyBucket<Sample>(Math.max(1,SIZE), 0.005);
+        /**
+         * The {@link ObjectMapper} to use when sampling.
+         */
+        private final ObjectMapper mapper;
+        /**
+         * The best guess at the uncompressed JSON size.
+         */
+        private int averageSize = 8192;
+
+        /**
+         * Default constructor.
+         */
+        public Sampler() {
+            mapper = new ObjectMapper();
+            mapper.registerModule(new MetricsModule(RATE_UNIT, DURATION_UNIT, false));
+        }
+
+        /**
+         * Rewrites a json node so that all its immediate fields have the prefix and postfix applied
+         *
+         * @param json    the object to rewrite
+         * @param prefix  the prefix to apply
+         * @param postfix the postfix to apply
+         * @return the rewritten object
+         */
+        private static JsonNode renameFields(JsonNode json, String prefix, String postfix) {
+            if ((prefix == null && postfix == null) || !json.isObject()) {
+                return json;
+            }
+            ObjectNode result = JsonNodeFactory.instance.objectNode();
+            for (Iterator<Map.Entry<String, JsonNode>> fieldIterator = json.fields(); fieldIterator.hasNext(); ) {
+                final Map.Entry<String, JsonNode> field = fieldIterator.next();
+                result.set(name(prefix, field.getKey(), postfix), field.getValue());
+            }
+            return result;
+        }
+
+        private static JsonNode rewrite(JsonNode json, String prefix, String postfix) {
+            if ((prefix == null && postfix == null) || !json.isObject()) {
+                return json;
+            }
+            ObjectNode result = JsonNodeFactory.instance.objectNode();
+            for (Iterator<Map.Entry<String, JsonNode>> i = json.fields(); i.hasNext(); ) {
+                final Map.Entry<String, JsonNode> entry = i.next();
+                final String fieldName = entry.getKey();
+                if (METRIC_FIELD_NAMES.contains(fieldName)) {
+                    result.set(fieldName, renameFields(entry.getValue(), prefix, postfix));
+                } else {
+                    // pass-through
+                    result.set(fieldName, entry.getValue());
+                }
+
+            }
+            return result;
+        }
+
+        public Map<Date, Object> sample() {
+            Map<Date, Object> result = new TreeMap<Date, Object>();
+            ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
+            for (Sample s : bucket.values()) {
+                JsonNode value = s.getValue(reader);
+                if (value != null) {
+                    result.put(s.getTime(), value);
+                }
+            }
+            return result;
+        }
+
+        public Map<Date, Object> sample(String prefix, String postfix) {
+            Map<Date, Object> result = new TreeMap<Date, Object>();
+            ObjectReader reader = mapper.reader(new JsonNodeFactory(false));
+            for (Sample s : bucket.values()) {
+                JsonNode value = s.getValue(reader);
+                if (value != null) {
+                    result.put(s.getTime(), rewrite(value, prefix, postfix));
+                }
+            }
+            return result;
+        }
+
+        public static boolean isEnabled() {
+            return SIZE <= 0;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        public long getRecurrencePeriod() {
+            return isEnabled() ? TimeUnit.SECONDS.toMillis(30) : TimeUnit.DAYS.toMillis(1);
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Override
+        protected void doRun() throws Exception {
+            if (isEnabled()) {
+                ObjectWriter writer = mapper.writer();
+                // always allocate 1kb more that the average compressed size
+                ByteArrayOutputStream baos = new ByteArrayOutputStream(averageSize + 1024);
+                try {
+                    GZIPOutputStream gzos = null;
+                    try {
+                        gzos = new GZIPOutputStream(baos);
+                        writer.writeValue(gzos, Metrics.metricRegistry());
+                    } finally {
+                        IOUtils.closeQuietly(gzos);
+                    }
+                } finally {
+                    baos.close();
+                }
+                byte[] compressedBytes = baos.toByteArray();
+                // the compressed size should be an average of the recent values, this will give us
+                // a computationally quick exponential move towards the average... we do not need a strict
+                // exponential average
+                averageSize = Math.max(8192, (7 * averageSize + compressedBytes.length) / 8);
+                bucket.add(new Sample(System.currentTimeMillis(), compressedBytes));
+            }
+        }
+
+        /**
+         * A sample.
+         */
+        @SuppressWarnings(value = "EI_EXPOSE_REP2")
+        public static class Sample {
+            /**
+             * The time when the sample was captured.
+             */
+            private final long t;
+            /**
+             * The GZip compressed JSON of the sample.
+             */
+            @NonNull
+            private final byte[] v;
+
+            /**
+             * Constructor.
+             * @param t the time of the sample.
+             * @param v the compressed JSON bytes.
+             */
+            public Sample(long t, @NonNull byte[] v) {
+                this.t = t;
+                this.v = v;
+            }
+
+            /**
+             * Gets the time the sample was taken.
+             * @return the time the sample was taken.
+             */
+            @NonNull
+            public Date getTime() {
+                return new Date(t);
+            }
+
+            /**
+             * Gets the JSON from the sample.
+             * @param reader the {@link ObjectReader} to use.
+             * @return the JSON.
+             */
+            @CheckForNull
+            public JsonNode getValue(@NonNull ObjectReader reader) {
+                GZIPInputStream gzis = null;
+                try {
+                    gzis = new GZIPInputStream(new ByteArrayInputStream(v));
+                    return reader.readTree(gzis);
+                } catch (JsonProcessingException e) {
+                    return null;
+                } catch (IOException e) {
+                    return null;
+                } finally {
+                    IOUtils.closeQuietly(gzis);
+                }
+            }
+        }
+
+    }
+
 }
