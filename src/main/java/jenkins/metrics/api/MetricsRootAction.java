@@ -1041,7 +1041,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         /**
          * A sample.
          */
-        @SuppressWarnings(value = "EI_EXPOSE_REP2")
+        @edu.umd.cs.findbugs.annotations.SuppressWarnings(value = "EI_EXPOSE_REP2")
         public static class Sample {
             /**
              * The time when the sample was captured.
