@@ -34,14 +34,12 @@ import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheck.Result;
 import com.codahale.metrics.health.HealthCheckRegistry;
 import com.infradna.tool.bridge_method_injector.WithBridgeMethods;
-import hudson.init.InitMilestone;
-import hudson.init.Initializer;
-import javax.annotation.concurrent.ThreadSafe;
-import jenkins.metrics.impl.MetricsFilter;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.Plugin;
+import hudson.init.InitMilestone;
+import hudson.init.Initializer;
 import hudson.model.PeriodicWork;
 import hudson.model.TaskListener;
 import hudson.security.ACL;
@@ -51,13 +49,6 @@ import hudson.security.PermissionScope;
 import hudson.util.PluginServletFilter;
 import hudson.util.StreamTaskListener;
 import hudson.util.TimeUnit2;
-import jenkins.model.Jenkins;
-import jenkins.metrics.util.HealthChecksThreadPool;
-
-import org.kohsuke.accmod.Restricted;
-import org.kohsuke.accmod.restrictions.NoExternalUse;
-import org.kohsuke.stapler.HttpResponse;
-
 import java.io.File;
 import java.io.IOException;
 import java.util.Date;
@@ -72,8 +63,13 @@ import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import javax.annotation.Nonnull;
+import jenkins.metrics.impl.MetricsFilter;
+import jenkins.metrics.util.HealthChecksThreadPool;
+import jenkins.model.Jenkins;
+import net.jcip.annotations.ThreadSafe;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.NoExternalUse;
+import org.kohsuke.stapler.HttpResponse;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
@@ -149,7 +145,7 @@ public class Metrics extends Plugin {
      * 
      * @return a map with health check name -> health check result
      */
-    @Nonnull
+    @NonNull
     public static SortedMap<String, Result> getHealthCheckResults() {
         Jenkins jenkins = Jenkins.getInstance();
         if (jenkins == null) {
