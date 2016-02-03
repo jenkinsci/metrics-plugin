@@ -67,6 +67,8 @@ import jenkins.metrics.impl.MetricsFilter;
 import jenkins.metrics.util.HealthChecksThreadPool;
 import jenkins.model.Jenkins;
 import net.jcip.annotations.ThreadSafe;
+import org.acegisecurity.context.SecurityContext;
+import org.acegisecurity.context.SecurityContextHolder;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpResponse;
@@ -147,23 +149,14 @@ public class Metrics extends Plugin {
      */
     @NonNull
     public static SortedMap<String, Result> getHealthCheckResults() {
-        Jenkins jenkins = Jenkins.getInstance();
-        if (jenkins == null) {
-            LOGGER.warning("Unable to get health check results, client master is not ready (startup or shutdown)");
-            return new TreeMap<String, Result>();
-        }
-        HealthChecker healthChecker = jenkins.getExtensionList(PeriodicWork.class).get(HealthChecker.class);
-        if (healthChecker == null) {
-            LOGGER.warning("Unable to get health check results, HealthChecker is not available");
-            return new TreeMap<String, Result>();
-        }
-        return healthChecker.getHealthCheckResults();
+        HealthCheckData data = getHealthCheckData();
+        return data == null ? new TreeMap<String, Result>() : data.getResults();
     }
 
     /**
-     * Get the number of milliseconds since January 1, 1970 GMT when the health check was last run.
+     * Get the current health check data.
      *
-     * @return the number of milliseconds since January 1, 1970 GMT or {@literal -1}.
+     * @return the current health check data or {@code null} if the health checks have not run yet.
      */
     @CheckForNull
     public static HealthCheckData getHealthCheckData() {
@@ -404,59 +397,116 @@ public class Metrics extends Plugin {
     /**
      * Performs the periodic running of health checks and re-indexing of access keys.
      */
+    // TODO switch to AsyncPeriodicWork once on a new enough Jenkins core
     @Extension
     public static class HealthChecker extends PeriodicWork {
 
+        /**
+         * Timer to track how long the health checks are taking to execute.
+         */
         private final Timer healthCheckDuration = new Timer();
 
+        /**
+         * The most recent health check data.
+         */
         private HealthCheckData healthCheckData = null;
 
+        /**
+         * Gauge to track the number of health checks.
+         */
         private final Gauge<Integer> healthCheckCount = new Gauge<Integer>() {
             public Integer getValue() {
                 return healthCheckRegistry().getNames().size();
             }
         };
+        /**
+         * Gauge to track the health check score.
+         */
         private final Gauge<Double> healthCheckScore = new Gauge<Double>() {
             public Double getValue() {
                 return score;
             }
         };
+        /**
+         * Copy and paste from AsyncPeriodicWork
+         */
         private Future<?> future;
+        /**
+         * The current score.
+         */
         private volatile double score = 1.0;
+        /**
+         * The most recent unhealthy checks.
+         */
         private volatile Set<String> lastUnhealthy = null;
 
+        /**
+         * Default constructor.
+         */
         public HealthChecker() {
             super();
         }
 
+        /**
+         * {@inheritDoc}
+         */
         public long getRecurrencePeriod() {
             return TimeUnit2.MINUTES.toMillis(Math.min(Math.max(1, HEALTH_CHECK_INTERVAL_MINS),
                     TimeUnit2.DAYS.toMinutes(1)));
         }
 
+        /**
+         * Gets the {@link Timer} that tracks how long the health checks are taking to execute.
+         *
+         * @return the {@link Timer} that tracks how long the health checks are taking to execute.
+         */
         public Timer getHealthCheckDuration() {
             return healthCheckDuration;
         }
 
+        /**
+         * Gets the most recent results.
+         *
+         * @return the most recent results.
+         * @see #getHealthCheckData()
+         */
+        @NonNull
         @WithBridgeMethods(Map.class)
         public SortedMap<String, HealthCheck.Result> getHealthCheckResults() {
             return healthCheckData == null ? new TreeMap<String, Result>() : healthCheckData.results;
         }
 
-        public long getHealthCheckResultMillis() {
-            return healthCheckData == null ? -1 : healthCheckData.getLastModified();
+        /**
+         * Gets the most recent health check data (which includes {@link HealthCheckData#getLastModified()})
+         *
+         * @return the most recent health check data or {@code null} if the health checks have not run yet.
+         */
+        @CheckForNull
+        public HealthCheckData getHealthCheckData() {
+            return healthCheckData;
         }
 
+        /**
+         * Gets the {@link Gauge} that tracks the number of health checks.
+         *
+         * @return the {@link Gauge} that tracks the number of health checks.
+         */
         public Gauge<Integer> getHealthCheckCount() {
             return healthCheckCount;
         }
 
+        /**
+         * Gets the {@link Gauge} that tracks the health check score.
+         *
+         * @return the {@link Gauge} that tracks the health check score.
+         */
         public Gauge<Double> getHealthCheckScore() {
             return healthCheckScore;
         }
 
         /**
          * Schedules this periodic work now in a new thread, if one isn't already running.
+         * Copy and paste from AsyncPeriodicWork
          */
         public final void doRun() {
             try {
@@ -475,11 +525,10 @@ public class Metrics extends Plugin {
                         long startTime = System.currentTimeMillis();
 
                         StreamTaskListener l = null;
+                        SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
                         try {
                             l = new StreamTaskListener(new File(Jenkins.getInstance().getRootDir(),
                                     HealthChecker.class.getName() + ".log"));
-                            ACL.impersonate(ACL.SYSTEM);
-
                             execute(l);
                         } catch (IOException e) {
                             if (l != null) {
@@ -499,8 +548,8 @@ public class Metrics extends Plugin {
                             if (l != null) {
                                 l.closeQuietly();
                             }
+                            SecurityContextHolder.setContext(oldContext); // required as we are running in a pool
                         }
-
                         logger.log(Level.FINE, "Finished " + HealthChecker.class.getName() + ". " +
                                 (System.currentTimeMillis() - startTime) + " ms");
                     }
@@ -510,6 +559,13 @@ public class Metrics extends Plugin {
             }
         }
 
+        /**
+         * The actual periodic work to run asynchronously.
+         *
+         * @param listener the listener.
+         * @throws IOException          if things go wrong.
+         * @throws InterruptedException if interrupted.
+         */
         private void execute(TaskListener listener) throws IOException, InterruptedException {
             reindexAccessKeys();
             HealthCheckRegistry registry = healthCheckRegistry();
@@ -580,39 +636,78 @@ public class Metrics extends Plugin {
                 LOGGER.log(Level.INFO, "All health checks are reporting as healthy");
             }
         }
-
-        @CheckForNull
-        public HealthCheckData getHealthCheckData() {
-            return healthCheckData;
-        }
     }
 
+    /**
+     * Health check data.
+     */
     @ThreadSafe
     public static class HealthCheckData {
+        /**
+         * When the health check data was created.
+         */
         private final long lastModified;
+        /**
+         * When the health check data is expected to be replaced with a newer result.
+         */
+        @CheckForNull
         private final Long expires;
+        /**
+         * The results.
+         */
+        @NonNull
         private final SortedMap<String, HealthCheck.Result> results;
 
-        public HealthCheckData(SortedMap<String, Result> results, long nextMillis) {
+        /**
+         * Constructor for when you know how long before the next collection.
+         *
+         * @param results    the current results.
+         * @param nextMillis how long until the next results will be available.
+         */
+        public HealthCheckData(@NonNull SortedMap<String, Result> results, long nextMillis) {
             this.results = results;
             this.lastModified = System.currentTimeMillis();
             this.expires = lastModified + nextMillis;
         }
 
-        public HealthCheckData(SortedMap<String, Result> results) {
+        /**
+         * Constructor for when you do not know how long before the next collection.
+         *
+         * @param results the current results.
+         */
+        public HealthCheckData(@NonNull SortedMap<String, Result> results) {
             this.results = results;
             this.lastModified = System.currentTimeMillis();
             this.expires = null;
         }
 
+        /**
+         * The number of milliseconds since 1st January 1970 GMT when the results were collected.
+         *
+         * @return The number of milliseconds since 1st January 1970 GMT when the results were collected.
+         */
         public long getLastModified() {
             return lastModified;
         }
 
+        /**
+         * The number of milliseconds since 1st January 1970 GMT when the results are expected to be superceded by a
+         * newer result.
+         *
+         * @return The number of milliseconds since 1st January 1970 GMT when the results are expected to be
+         * superceded by a newer result or {@code null}
+         */
+        @CheckForNull
         public Long getExpires() {
             return expires;
         }
 
+        /**
+         * The results.
+         *
+         * @return the results.
+         */
+        @NonNull
         public SortedMap<String, Result> getResults() {
             return results;
         }
