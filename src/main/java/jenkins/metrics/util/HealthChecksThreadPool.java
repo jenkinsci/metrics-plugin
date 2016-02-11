@@ -23,6 +23,7 @@
  */
 package jenkins.metrics.util;
 
+import java.io.IOException;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
@@ -103,7 +104,8 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
                 new Object[] { getMaximumPoolSize(), queueCapacity(), healthCheckRegistry.getNames().size() });
         // avoid going over queueCapacity, drop the oldest in queue if that happens
         // if there is any race condition MetricsRejectedExecutionHandler will catch it anyway
-        if (getQueue().size() >= queueCapacity()) {
+        int size = getQueue().size();
+        if (size > 0 && size >= queueCapacity()) {
             dropOldestInQueue(this, healthCheckRegistry);
         }
         super.beforeExecute(t, r);
@@ -113,14 +115,22 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
      * Drop the oldest health check in executor queue and cancel it
      */
     static void dropOldestInQueue(ThreadPoolExecutor executor, HealthCheckRegistry healthCheckRegistry) {
-        LOGGER.log(Level.WARNING,
-                "Too many health check executions queued, dropping oldest one. This may mean some health checks are taking too long to execute:"
-                        + " {0}, queue size={1}, health checks={2} ({3})",
-                new Object[] { executor, executor.getQueue().size(), healthCheckRegistry.getNames(),
-                        healthCheckRegistry.getNames().size() });
+        // capture the state up front
+        Object[] params = {
+                executor, executor.getQueue().size(), healthCheckRegistry.getNames(),
+                healthCheckRegistry.getNames().size(), executor.getQueue().toString()
+        };
 
         Runnable discarded = executor.getQueue().poll();
-        cancelQueuedHealthCheck(discarded);
+        // if there are two workers taking jobs concurrently, the queue will be empty by the time we get here
+        if (discarded != null) {
+            LOGGER.log(Level.WARNING,
+                    "Too many health check executions queued, dropping oldest one. This may mean some health checks "
+                            + "are taking too long to execute:"
+                            + " {0}, queue size={1}, health checks={2} ({3}) {4}",
+                    params);
+            cancelQueuedHealthCheck(discarded);
+        }
     }
 
     /**
