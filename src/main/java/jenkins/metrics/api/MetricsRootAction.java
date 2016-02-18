@@ -746,7 +746,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
                     output.write(jsonpCallback.getBytes("US-ASCII"));
                     output.write("(".getBytes("US-ASCII"));
                 }
-                Sampler sampler = Jenkins.getInstance().getExtensionList(PeriodicWork.class).get(Sampler.class);
+                Jenkins jenkins = Jenkins.getInstance();
+                Sampler sampler = jenkins == null ? null : jenkins.getExtensionList(PeriodicWork.class).get(Sampler.class);
                 Map<Date, Object> sample = sampler == null
                         ? null
                         : (prefix == null && postfix == null ? sampler.sample() : sampler.sample(prefix, postfix));

@@ -146,22 +146,25 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             protected QueueStats loadValue() {
                 SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
                 try {
-                    Queue queue = Jenkins.getInstance().getQueue();
+                    Jenkins jenkins = Jenkins.getInstance();
+                    Queue queue = jenkins == null ? null : jenkins.getQueue();
                     int length = 0;
                     int blocked = 0;
                     int buildable = 0;
-                    int pending = queue.getPendingItems().size();
+                    int pending = queue == null ? 0 : queue.getPendingItems().size();
                     int stuck = 0;
-                    for (Queue.Item i : queue.getItems()) {
-                        length++;
-                        if (i.isBlocked()) {
-                            blocked++;
-                        }
-                        if (i.isBuildable()) {
-                            buildable++;
-                        }
-                        if (i.isStuck()) {
-                            stuck++;
+                    if (queue != null) {
+                        for (Queue.Item i : queue.getItems()) {
+                            length++;
+                            if (i.isBlocked()) {
+                                blocked++;
+                            }
+                            if (i.isBuildable()) {
+                                buildable++;
+                            }
+                            if (i.isStuck()) {
+                                stuck++;
+                            }
                         }
                     }
                     return new QueueStats(length, blocked, buildable, pending, stuck);
@@ -182,10 +185,28 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             int executorCount = 0;
                             int executorBuilding = 0;
                             Jenkins jenkins = Jenkins.getInstance();
-                            if (jenkins.getNumExecutors() > 0) {
-                                nodeCount++;
-                                Computer computer = jenkins.toComputer();
-                                if (computer != null) {
+                            if (jenkins != null) {
+                                if (jenkins.getNumExecutors() > 0) {
+                                    nodeCount++;
+                                    Computer computer = jenkins.toComputer();
+                                    if (computer != null) {
+                                        if (!computer.isOffline()) {
+                                            nodeOnline++;
+                                            for (Executor e : computer.getExecutors()) {
+                                                executorCount++;
+                                                if (!e.isIdle()) {
+                                                    executorBuilding++;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                for (Node node : jenkins.getNodes()) {
+                                    nodeCount++;
+                                    Computer computer = node.toComputer();
+                                    if (computer == null) {
+                                        continue;
+                                    }
                                     if (!computer.isOffline()) {
                                         nodeOnline++;
                                         for (Executor e : computer.getExecutors()) {
@@ -193,22 +214,6 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                             if (!e.isIdle()) {
                                                 executorBuilding++;
                                             }
-                                        }
-                                    }
-                                }
-                            }
-                            for (Node node : jenkins.getNodes()) {
-                                nodeCount++;
-                                Computer computer = node.toComputer();
-                                if (computer == null) {
-                                    continue;
-                                }
-                                if (!computer.isOffline()) {
-                                    nodeOnline++;
-                                    for (Executor e : computer.getExecutors()) {
-                                        executorCount++;
-                                        if (!e.isIdle()) {
-                                            executorBuilding++;
                                         }
                                     }
                                 }
@@ -369,9 +374,12 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     @Override
                     protected Integer loadValue() {
                         int count = 0;
-                        for (PluginWrapper w : Jenkins.getInstance().getPluginManager().getPlugins()) {
-                            if (w.isActive()) {
-                                count++;
+                        Jenkins jenkins = Jenkins.getInstance();
+                        if (jenkins != null) {
+                            for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
+                                if (w.isActive()) {
+                                    count++;
+                                }
                             }
                         }
                         return count;
@@ -381,9 +389,12 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     @Override
                     protected Integer loadValue() {
                         int count = 0;
-                        for (PluginWrapper w : Jenkins.getInstance().getPluginManager().getPlugins()) {
-                            if (!w.isActive()) {
-                                count++;
+                        Jenkins jenkins = Jenkins.getInstance();
+                        if (jenkins != null) {
+                            for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
+                                if (!w.isActive()) {
+                                    count++;
+                                }
                             }
                         }
                         return count;
@@ -392,16 +403,20 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 metric(name("jenkins", "plugins", "failed"), new CachedGauge<Integer>(5, TimeUnit.MINUTES) {
                     @Override
                     protected Integer loadValue() {
-                        return Jenkins.getInstance().getPluginManager().getFailedPlugins().size();
+                        Jenkins jenkins = Jenkins.getInstance();
+                        return jenkins == null ? 0 : jenkins.getPluginManager().getFailedPlugins().size();
                     }
                 }),
                 metric(name("jenkins", "plugins", "withUpdate"), new CachedGauge<Integer>(5, TimeUnit.MINUTES) {
                     @Override
                     protected Integer loadValue() {
                         int count = 0;
-                        for (PluginWrapper w : Jenkins.getInstance().getPluginManager().getPlugins()) {
-                            if (w.hasUpdate()) {
-                                count++;
+                        Jenkins jenkins = Jenkins.getInstance();
+                        if (jenkins != null) {
+                            for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
+                                if (w.hasUpdate()) {
+                                    count++;
+                                }
                             }
                         }
                         return count;
@@ -426,7 +441,8 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     }
 
     public static JenkinsMetricProviderImpl instance() {
-        return Jenkins.getInstance().getExtensionList(MetricProvider.class).get(JenkinsMetricProviderImpl.class);
+        Jenkins jenkins = Jenkins.getInstance();
+        return jenkins == null ? null : jenkins.getExtensionList(MetricProvider.class).get(JenkinsMetricProviderImpl.class);
     }
 
     @NonNull
@@ -692,7 +708,8 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 new WeakHashMap<Queue.WaitingItem, Timer.Context>();
 
         public static ScheduledRate instance() {
-            return Jenkins.getInstance().getExtensionList(QueueListener.class).get(ScheduledRate.class);
+            Jenkins jenkins = Jenkins.getInstance();
+            return jenkins == null ? null : jenkins.getExtensionList(QueueListener.class).get(ScheduledRate.class);
         }
 
         public void addAction(Run run) {

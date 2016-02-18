@@ -52,8 +52,12 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                 check("plugins", new HealthCheck() {
                     @Override
                     protected Result check() throws Exception {
+                        Jenkins jenkins = Jenkins.getInstance();
+                        if (jenkins == null) {
+                            return Result.healthy();
+                        }
                         List<PluginManager.FailedPlugin> failedPlugins =
-                                Jenkins.getInstance().getPluginManager().getFailedPlugins();
+                                jenkins.getPluginManager().getFailedPlugins();
                         if (failedPlugins.isEmpty()) {
                             return Result.healthy("No failed plugins");
                         }
@@ -71,10 +75,11 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                     @Override
                     protected Result check() throws Exception {
                         DiskSpaceMonitor m = ComputerSet.getMonitors().get(DiskSpaceMonitor.class);
-                        if (m == null) {
+                        Jenkins jenkins = Jenkins.getInstance();
+                        if (m == null || jenkins == null) {
                             return Result.healthy();
                         }
-                        for (Computer c : Jenkins.getInstance().getComputers()) {
+                        for (Computer c : jenkins.getComputers()) {
                             DiskSpaceMonitorDescriptor.DiskSpace freeSpace = m.getFreeSpace(c);
                             if (freeSpace != null && m.getThresholdBytes() > freeSpace.size) {
                                 return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(),
@@ -89,10 +94,11 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                     @Override
                     protected Result check() throws Exception {
                         TemporarySpaceMonitor m = ComputerSet.getMonitors().get(TemporarySpaceMonitor.class);
-                        if (m == null) {
+                        Jenkins jenkins = Jenkins.getInstance();
+                        if (m == null || jenkins == null) {
                             return Result.healthy();
                         }
-                        for (Computer c : Jenkins.getInstance().getComputers()) {
+                        for (Computer c : jenkins.getComputers()) {
                             DiskSpaceMonitorDescriptor.DiskSpace freeSpace = m.getFreeSpace(c);
                             if (freeSpace != null && m.getThresholdBytes() > freeSpace.size) {
                                 return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(),
