@@ -306,6 +306,9 @@ public class MetricsRootAction implements UnprotectedRootAction {
      * unsecurely.
      *
      * return status 200 if everything is OK, 503 (service unavailable) otherwise
+     *
+     * @param req the request
+     * @return the HTTP response
      */
     @SuppressWarnings("unused") // stapler binding
     @Restricted(NoExternalUse.class) // stapler binding

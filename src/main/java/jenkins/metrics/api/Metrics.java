@@ -145,7 +145,7 @@ public class Metrics extends Plugin {
     /**
      * Get the last health check results
      * 
-     * @return a map with health check name -> health check result
+     * @return a map with health check name -&gt; health check result
      */
     @NonNull
     public static SortedMap<String, Result> getHealthCheckResults() {
@@ -325,11 +325,11 @@ public class Metrics extends Plugin {
             return;
         }
         LOGGER.log(Level.FINER, "Confirmed metrics plugin initialized");
-        for (MetricProvider p : Jenkins.getInstance().getExtensionList(MetricProvider.class)) {
+        for (MetricProvider p : jenkins.getExtensionList(MetricProvider.class)) {
             LOGGER.log(Level.FINER, "Registering metric provider {0} (type {1})", new Object[]{p, p.getClass()});
             plugin.metricRegistry.registerAll(p.getMetricSet());
         }
-        for (HealthCheckProvider p : Jenkins.getInstance().getExtensionList(HealthCheckProvider.class)) {
+        for (HealthCheckProvider p : jenkins.getExtensionList(HealthCheckProvider.class)) {
             LOGGER.log(Level.FINER, "Registering health check provider {0} (type {1})", new Object[]{p, p.getClass()});
             Map<String, HealthCheck> healthChecks = p.getHealthChecks();
             for (Map.Entry<String, HealthCheck> c : healthChecks.entrySet()) {
@@ -378,8 +378,14 @@ public class Metrics extends Plugin {
         @NonNull
         @Override
         public MetricSet getMetricSet() {
-            HealthChecker c =
-                    Jenkins.getInstance().getExtensionList(PeriodicWork.class).get(HealthChecker.class);
+            Jenkins jenkins = Jenkins.getInstance();
+            if (jenkins == null) {
+                throw new AssertionError("Jenkins is missing");
+            }
+            HealthChecker c = jenkins.getExtensionList(PeriodicWork.class).get(HealthChecker.class);
+            if (c == null) {
+                throw new AssertionError("HealthChecker is missing");
+            }
             return metrics(
                     metric(name("jenkins", "health-check", "duration"), c.getHealthCheckDuration()),
                     metric(name("jenkins", "health-check", "count"), c.getHealthCheckCount()),
@@ -527,7 +533,11 @@ public class Metrics extends Plugin {
                         StreamTaskListener l = null;
                         SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
                         try {
-                            l = new StreamTaskListener(new File(Jenkins.getInstance().getRootDir(),
+                            Jenkins jenkins = Jenkins.getInstance();
+                            if (jenkins == null) {
+                                return;
+                            }
+                            l = new StreamTaskListener(new File(jenkins.getRootDir(),
                                     HealthChecker.class.getName() + ".log"));
                             execute(l);
                         } catch (IOException e) {
@@ -572,12 +582,15 @@ public class Metrics extends Plugin {
             // update the active health checks
             Set<String> defined = registry.getNames();
             Set<String> removed = new HashSet<String>(defined);
-            for (HealthCheckProvider p : Jenkins.getInstance().getExtensionList(HealthCheckProvider.class)) {
-                for (Map.Entry<String, HealthCheck> c : p.getHealthChecks().entrySet()) {
-                    removed.remove(c.getKey());
-                    if (!defined.contains(c.getKey())) {
-                        registry.register(c.getKey(), c.getValue());
-                        defined.add(c.getKey());
+            Jenkins jenkins = Jenkins.getInstance();
+            if (jenkins != null) {
+                for (HealthCheckProvider p : jenkins.getExtensionList(HealthCheckProvider.class)) {
+                    for (Map.Entry<String, HealthCheck> c : p.getHealthChecks().entrySet()) {
+                        removed.remove(c.getKey());
+                        if (!defined.contains(c.getKey())) {
+                            registry.register(c.getKey(), c.getValue());
+                            defined.add(c.getKey());
+                        }
                     }
                 }
             }
