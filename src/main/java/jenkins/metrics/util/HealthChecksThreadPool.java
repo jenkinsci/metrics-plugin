@@ -24,6 +24,8 @@
 package jenkins.metrics.util;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.SortedSet;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
@@ -31,6 +33,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -64,13 +67,12 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
     private static final int MAX_THREAD_POOL_SIZE = Integer
             .parseInt(System.getProperty(HealthChecksThreadPool.class.getName() + ".maxThreadNumber", "4"));
 
-    private static long rejectedExecutions;
+    private static AtomicLong rejectedExecutions = new AtomicLong(0);
 
     private HealthCheckRegistry healthCheckRegistry;
 
     public HealthChecksThreadPool(HealthCheckRegistry healthCheckRegistry) {
-        super(MAX_THREAD_POOL_SIZE, MAX_THREAD_POOL_SIZE, //
-                5L, TimeUnit.SECONDS, //
+        super(MAX_THREAD_POOL_SIZE, MAX_THREAD_POOL_SIZE, 5L, TimeUnit.SECONDS,
                 new LinkedBlockingQueue<Runnable>(), //
                 new ExceptionCatchingThreadFactory(new DaemonThreadFactory(new ThreadFactory() {
                     private final AtomicInteger number = new AtomicInteger();
@@ -83,15 +85,9 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
         this.healthCheckRegistry = healthCheckRegistry;
         LOGGER.log(Level.FINE,
                 "Created thread pool with a max of {0} threads (plus {1} in queue) for {2} health checks",
-                new Object[] { getMaximumPoolSize(), queueCapacity(), healthCheckRegistry.getNames().size() });
-    }
-
-    /**
-     * Queue capacity is dynamically calculated based on the number of health checks. One thread is taken by the
-     * executor itself
-     */
-    private int queueCapacity() {
-        return Math.max(0, 1 + healthCheckRegistry.getNames().size() - MAX_THREAD_POOL_SIZE);
+                new Object[] { getMaximumPoolSize(),
+                               Math.max(0, healthCheckRegistry.getNames().size() + 1 - getMaximumPoolSize()),
+                               healthCheckRegistry.getNames().size() });
     }
 
     /**
@@ -100,12 +96,16 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
      */
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
-        LOGGER.log(Level.FINEST, "Executing health check, pool/queue size is {0}/{1} for {2} health checks",
-                new Object[] { getMaximumPoolSize(), queueCapacity(), healthCheckRegistry.getNames().size() });
+        int size = getQueue().size();
+        int running = getActiveCount();
+        SortedSet<String> names = healthCheckRegistry.getNames();
+        int limit = names.size();
+        LOGGER.log(Level.INFO,
+                "Executing health check, active={0} queued={1} thread pool={2} (max {3}) for {4} health checks: {5}",
+                new Object[] {running, size, getPoolSize(), getMaximumPoolSize(), limit, names});
         // avoid going over queueCapacity, drop the oldest in queue if that happens
         // if there is any race condition MetricsRejectedExecutionHandler will catch it anyway
-        int size = getQueue().size();
-        if (size > 0 && size >= queueCapacity()) {
+        if (running + size > limit + 1) {
             dropOldestInQueue(this, healthCheckRegistry);
         }
         super.beforeExecute(t, r);
@@ -118,7 +118,7 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
         // capture the state up front
         Object[] params = {
                 executor, executor.getQueue().size(), healthCheckRegistry.getNames(),
-                healthCheckRegistry.getNames().size(), executor.getQueue().toString()
+                healthCheckRegistry.getNames().size(), Arrays.asList(executor.getQueue().toArray())
         };
 
         Runnable discarded = executor.getQueue().poll();
@@ -150,7 +150,7 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
 
     @Restricted(DoNotUse.class) // testing only
     public static long getRejectedExecutions() {
-        return rejectedExecutions;
+        return rejectedExecutions.get();
     }
 
     /**
@@ -166,14 +166,15 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
         }
 
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-            rejectedExecutions++;
-            LOGGER.log(Level.WARNING,
-                    "Execution of health check was rejected:" + " {0}, queue size={1}, health checks={2} ({3})",
-                    new Object[] { executor, executor.getQueue().size(), healthCheckRegistry.getNames(),
-                            healthCheckRegistry.getNames().size() });
-
+            rejectedExecutions.incrementAndGet();
             // copied from DiscardOldestPolicy to ensure health check gets cancelled
             if (!executor.isShutdown()) {
+                LOGGER.log(Level.WARNING,
+                        "Execution of health check was rejected:" + " {0}, queue size={1}, health checks={2} ({3})",
+                        new Object[]{
+                                executor, executor.getQueue().size(), healthCheckRegistry.getNames(),
+                                healthCheckRegistry.getNames().size()
+                        });
                 dropOldestInQueue(executor, healthCheckRegistry);
                 executor.execute(r);
             }
