@@ -100,7 +100,7 @@ public class HealthChecksThreadPool extends ThreadPoolExecutor {
         int running = getActiveCount();
         SortedSet<String> names = healthCheckRegistry.getNames();
         int limit = names.size();
-        LOGGER.log(Level.INFO,
+        LOGGER.log(Level.FINER,
                 "Executing health check, active={0} queued={1} thread pool={2} (max {3}) for {4} health checks: {5}",
                 new Object[] {running, size, getPoolSize(), getMaximumPoolSize(), limit, names});
         // avoid going over queueCapacity, drop the oldest in queue if that happens
