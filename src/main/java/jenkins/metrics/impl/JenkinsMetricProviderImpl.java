@@ -25,7 +25,6 @@
 package jenkins.metrics.impl;
 
 import com.codahale.metrics.CachedGauge;
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
@@ -37,7 +36,6 @@ import com.codahale.metrics.Timer;
 import hudson.model.AbstractProject;
 import hudson.model.Item;
 import hudson.model.ItemGroup;
-import hudson.model.Project;
 import hudson.model.TopLevelItem;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.metrics.api.MetricProvider;
@@ -52,7 +50,6 @@ import hudson.model.Job;
 import hudson.model.Node;
 import hudson.model.PeriodicWork;
 import hudson.model.Queue;
-import hudson.model.Result;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.model.listeners.RunListener;
@@ -231,6 +228,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 try {
                     int count = 0;
                     int disabledProjects = 0;
+                    int inactiveProjects = 0;
                     int projectCount = 0;
                     Stack<ItemGroup> q = new Stack<ItemGroup>();
                     q.push(Jenkins.getInstance());
@@ -245,6 +243,9 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                     if (((AbstractProject) i).isDisabled()) {
                                         disabledProjects++;
                                     }
+                                    if (((AbstractProject) i).getLastBuild() == null) {
+                                        inactiveProjects++;
+                                    }
                                 }
                             }
                             if (i instanceof ItemGroup) {
@@ -252,7 +253,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             }
                         }
                     }
-                    return new JobStats(count, projectCount,disabledProjects);
+                    return new JobStats(count, projectCount,disabledProjects, inactiveProjects);
                 } finally {
                     SecurityContextHolder.setContext(oldContext);
                 }
@@ -362,6 +363,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             @Override
                             protected Integer transform(JobStats value) {
                                 return value.getDisabledProjectCount();
+                            }
+                        }).toMetricSet()),
+                metric(name("jenkins", "project", "inactive","count"),
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
+                            @Override
+                            protected Integer transform(JobStats value) {
+                                return value.getInactiveProjectCount();
                             }
                         }).toMetricSet()),
                 metric(name("jenkins", "job", "queuing", "duration"), (jenkinsJobQueueTime = new Timer())),
@@ -579,12 +587,14 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         private final int jobCount;
         private final int disabledProjectCount;
         private final int projectCount;
+        private final int inactiveProjectCount;
 
 
-        public JobStats(int jobCount, int projectCount, int disabledProjectCount) {
+        public JobStats(int jobCount, int projectCount, int disabledProjectCount, int inactiveProjectCount) {
             this.jobCount = jobCount;
             this.disabledProjectCount = disabledProjectCount;
             this.projectCount = projectCount;
+            this.inactiveProjectCount = inactiveProjectCount;
         }
 
         public int getJobCount() {
@@ -597,6 +607,10 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
         public int getProjectCount() {
             return projectCount;
+        }
+
+        public int getInactiveProjectCount() {
+            return inactiveProjectCount;
         }
 
         public Integer getEnabledProjectCount() {
