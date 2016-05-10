@@ -537,8 +537,20 @@ public class Metrics extends Plugin {
                             if (jenkins == null) {
                                 return;
                             }
-                            l = new StreamTaskListener(new File(jenkins.getRootDir(),
-                                    HealthChecker.class.getName() + ".log"));
+                            File logFile = new File(new File(jenkins.getRootDir(), "logs"), "health-checker.log");
+                            if (!logFile.isFile()) {
+                                File oldFile = new File(jenkins.getRootDir(), HealthChecker.class.getName() + ".log");
+                                if (!logFile.getParentFile().isDirectory() && !logFile.getParentFile().mkdirs()) {
+                                    logger.log(Level.SEVERE, "Could not create logs directory: {0}", logFile.getParentFile());
+                                }
+                                if (oldFile.isFile()) {
+                                    if (!oldFile.renameTo(logFile)) {
+                                        logger.log(Level.WARNING, "Could not migrate old log file from {0} to {1}",
+                                                new Object[]{oldFile, logFile});
+                                    }
+                                }
+                            }
+                            l = new StreamTaskListener(logFile);
                             execute(l);
                         } catch (IOException e) {
                             if (l != null) {
