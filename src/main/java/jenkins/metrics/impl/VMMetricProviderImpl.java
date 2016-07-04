@@ -29,6 +29,7 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import jenkins.metrics.api.MetricProvider;
+import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
 import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
@@ -81,7 +82,8 @@ public class VMMetricProviderImpl extends MetricProvider {
                     }
                 }),
                 metric(MetricRegistry.name("system", "cpu", "load"), systemCpuLoad),
-                metric(MetricRegistry.name("vm", "cpu", "load"), vmCpuLoad)
+                metric(MetricRegistry.name("vm", "cpu", "load"), vmCpuLoad),
+                metric(MetricRegistry.name("vm", "class"), new ClassLoadingGaugeSet())
         );
     }
 
