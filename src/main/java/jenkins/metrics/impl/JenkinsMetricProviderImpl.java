@@ -232,14 +232,22 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     int count = 0;
                     int disabledProjects = 0;
                     int projectCount = 0;
+                    long depthTotal = 0;
                     Stack<ItemGroup> q = new Stack<ItemGroup>();
                     q.push(Jenkins.getInstance());
                     while (!q.isEmpty()) {
                         ItemGroup<?> parent = q.pop();
+                        int depth = 0;
+                        ItemGroup p = parent;
+                        while (p != null) {
+                            depth++;
+                            p = p instanceof Item ? ((Item) p).getParent() : null;
+                        }
                         for (Item i : parent.getItems()) {
                             if (! (i instanceof TopLevelItem)) continue;
                             if (i instanceof Job) {
                                 count++;
+                                depthTotal += depth;
                                 if (i instanceof AbstractProject) {
                                     projectCount ++;
                                     if (((AbstractProject) i).isDisabled()) {
@@ -252,7 +260,8 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             }
                         }
                     }
-                    return new JobStats(count, projectCount,disabledProjects);
+                    return new JobStats(count, projectCount, disabledProjects,
+                            count == 0 ? 0.0 : depthTotal / ((double)count));
                 } finally {
                     SecurityContextHolder.setContext(oldContext);
                 }
@@ -343,6 +352,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                 return value.getJobCount();
                             }
                         }).toMetricSet()),
+                metric(name("jenkins", "job", "averageDepth"),
+                        new DerivativeGauge<JobStats,Double>(jobStats) {
+                            @Override
+                            protected Double transform(JobStats value) {
+                                return value.getDepthAverage();
+                            }
+                        }),
                 metric(name("jenkins", "project", "count"),
                         new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
                             @Override
@@ -579,12 +595,14 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         private final int jobCount;
         private final int disabledProjectCount;
         private final int projectCount;
+        private final double depthAverage;
 
 
-        public JobStats(int jobCount, int projectCount, int disabledProjectCount) {
+        public JobStats(int jobCount, int projectCount, int disabledProjectCount, double depthAverage) {
             this.jobCount = jobCount;
             this.disabledProjectCount = disabledProjectCount;
             this.projectCount = projectCount;
+            this.depthAverage = depthAverage;
         }
 
         public int getJobCount() {
@@ -601,6 +619,10 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
         public Integer getEnabledProjectCount() {
             return projectCount - disabledProjectCount;
+        }
+
+        public double getDepthAverage() {
+            return depthAverage;
         }
     }
 
