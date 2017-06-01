@@ -26,6 +26,7 @@ package jenkins.metrics.api;
 
 import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
@@ -125,6 +126,10 @@ public class Metrics extends Plugin {
      * The servlet filter.
      */
     private transient final MetricsFilter filter = new MetricsFilter();
+    /**
+     * Exposes metrics to JMX
+     */
+    private JmxReporter jmxReporter;
 
     /**
      * Returns the {@link HealthCheckRegistry} for the current {@link Jenkins}.
@@ -301,6 +306,8 @@ public class Metrics extends Plugin {
     @Override
     public void start() throws Exception {
         PluginServletFilter.addFilter(filter);
+        jmxReporter = JmxReporter.forRegistry(metricRegistry).build();
+        jmxReporter.start();
     }
 
     /**
@@ -353,6 +360,10 @@ public class Metrics extends Plugin {
         metricRegistry.removeMatching(MetricFilter.ALL);
         for (String name : healthCheckRegistry.getNames()) {
             healthCheckRegistry.unregister(name);
+        }
+        if (jmxReporter!=null) {
+            jmxReporter.stop();
+            jmxReporter = null;
         }
     }
 
