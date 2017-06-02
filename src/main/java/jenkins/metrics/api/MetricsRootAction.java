@@ -44,11 +44,8 @@ import hudson.model.PeriodicWork;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
 import hudson.util.IOUtils;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
+
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.Collections;
@@ -68,6 +65,10 @@ import java.util.zip.GZIPOutputStream;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+
+import io.prometheus.client.CollectorRegistry;
+import io.prometheus.client.dropwizard.DropwizardExports;
+import io.prometheus.client.exporter.common.TextFormat;
 import jenkins.metrics.util.ExponentialLeakyBucket;
 import jenkins.metrics.util.NameRewriterMetricRegistry;
 import jenkins.model.Jenkins;
@@ -351,6 +352,26 @@ public class MetricsRootAction implements UnprotectedRootAction {
     }
 
     /**
+     * Binds the metrics to the CORS aware URL {@code /metrics/prometheusMetrics} where the metrics access key is
+     * provided in the form field {@code key} or an {@code Authorization: Jenkins-Metrics-Key {key}} header
+     *
+     * @param req the request
+     * @param key the key from the form field.
+     * @return the {@link HttpResponse}
+     * @throws IllegalAccessException if the access attempt is invalid.
+     */
+    @SuppressWarnings("unused") // stapler binding
+    @Restricted(NoExternalUse.class) // stapler binding
+    public HttpResponse doPrometheusMetrics(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+        requireCorrectMethod(req);
+        if (StringUtils.isBlank(key)) {
+            key = getKeyFromAuthorizationHeader(req);
+        }
+        Metrics.checkAccessKeyMetrics(key);
+        return Metrics.cors(key, new PrometheusMetricsResponse(Metrics.metricRegistry()));
+    }
+
+    /**
      * Binds the metrics history to the CORS aware URL {@code /metrics/metricsHistory} where the metrics access key is
      * provided in the form field {@code key} or an {@code Authorization: Jenkins-Metrics-Key {key}} header
      *
@@ -452,6 +473,14 @@ public class MetricsRootAction implements UnprotectedRootAction {
         }
 
         /**
+         * Web binding for {@literal /prometheusMetrics}
+         *
+         * @return the response
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
+        public HttpResponse doPrometheusMetrics() { return new PrometheusMetricsResponse(Metrics.metricRegistry()); }
+
+        /**
          * Web binding for {@literal /metricsHistory}
          *
          * @return the response
@@ -505,6 +534,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
                             "    <li><a href=\"./ping\">Ping</a></li>\n" +
                             "    <li><a href=\"./threads\">Threads</a></li>\n" +
                             "    <li><a href=\"./healthcheck?pretty=true\">Healthcheck</a></li>\n" +
+                            "    <li><a href=\"./prometheusMetrics\">Prometheus metrics</a></li>\n" +
                             "  </ul>\n" +
                             "</body>\n" +
                             "</html>");
@@ -605,6 +635,43 @@ public class MetricsRootAction implements UnprotectedRootAction {
             final OutputStream output = resp.getOutputStream();
             try {
                 threadDump.dump(output);
+            } finally {
+                output.close();
+            }
+        }
+    }
+
+    /**
+     * A prometheus metrics response.
+     */
+    private static class PrometheusMetricsResponse implements HttpResponse {
+        /**
+         * The registry to provide the response from.
+         */
+        private final MetricRegistry registry;
+
+        /**
+         * Constructor.
+         * @param registry the registry.
+         */
+        private PrometheusMetricsResponse(MetricRegistry registry) {
+            this.registry = registry;
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+                ServletException {
+            resp.setStatus(HttpServletResponse.SC_OK);
+            resp.setHeader(CACHE_CONTROL, NO_CACHE);
+            resp.setContentType(TextFormat.CONTENT_TYPE_004);
+            CollectorRegistry collectorRegistry = new CollectorRegistry();
+            collectorRegistry.register(new DropwizardExports(registry));
+            Writer output = resp.getWriter();
+            try {
+                TextFormat.write004(output, collectorRegistry.metricFamilySamples());
+                output.flush();
             } finally {
                 output.close();
             }
@@ -803,6 +870,16 @@ public class MetricsRootAction implements UnprotectedRootAction {
          */
         @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
+        public HttpResponse doPrometheusMetrics() {
+            Jenkins.getInstance().checkPermission(Metrics.VIEW);
+            return super.doPrometheusMetrics();
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
+        @Override
         public HttpResponse doMetricsHistory() {
             Jenkins.getInstance().checkPermission(Metrics.VIEW);
             return super.doMetricsHistory();
@@ -868,6 +945,16 @@ public class MetricsRootAction implements UnprotectedRootAction {
         public HttpResponse doMetrics() {
             Metrics.checkAccessKeyMetrics(key);
             return Metrics.cors(key, super.doMetrics());
+        }
+
+        /**
+         * {@inheritDoc}
+         */
+        @Restricted(NoExternalUse.class) // only for use by stapler web binding
+        @Override
+        public HttpResponse doPrometheusMetrics() {
+            Metrics.checkAccessKeyMetrics(key);
+            return Metrics.cors(key, super.doPrometheusMetrics());
         }
 
         /**

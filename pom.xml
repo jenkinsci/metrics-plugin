@@ -70,6 +70,7 @@
   <properties>
     <jenkins.version>1.580</jenkins.version>
     <metrics.version>3.1.2</metrics.version>
+    <prometheus.version>0.0.14</prometheus.version>
     <java.level>6</java.level>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
@@ -111,6 +112,21 @@
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-jvm</artifactId>
       <version>${metrics.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient</artifactId>
+      <version>${prometheus.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient_common</artifactId>
+      <version>${prometheus.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.prometheus</groupId>
+      <artifactId>simpleclient_dropwizard</artifactId>
+      <version>${prometheus.version}</version>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
