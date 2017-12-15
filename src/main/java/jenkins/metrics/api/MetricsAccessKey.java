@@ -329,7 +329,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         private static final char[] keyChars =
                 "ABCEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray();
         @GuardedBy("this")
-        private List<MetricsAccessKey> accessKeys;
+        private List<MetricsAccessKey> accessKeys  = new ArrayList<MetricsAccessKey>();
         private transient volatile Set<String> accessKeySet;
 
         public DescriptorImpl() {
@@ -354,11 +354,13 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             return true;
         }
 
-        @NonNull
         public synchronized List<MetricsAccessKey> getAccessKeys() {
-            return Collections.unmodifiableList(new ArrayList<MetricsAccessKey>(
-                    accessKeys == null ? Collections.<MetricsAccessKey>emptyList() : accessKeys
-            ));
+            return accessKeys;
+        }
+
+        public synchronized void setAccessKeys(List<MetricsAccessKey> accessKeys) {
+            this.accessKeys = accessKeys;
+            save();
         }
 
         public void checkAccessKey(@CheckForNull String accessKey) {
