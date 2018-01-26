@@ -603,7 +603,7 @@ public class Metrics extends Plugin {
             reindexAccessKeys();
             HealthCheckRegistry registry = healthCheckRegistry();
             // update the active health checks
-            Set<String> defined = registry.getNames();
+            Set<String> defined = new HashSet<String>(registry.getNames());
             Set<String> removed = new HashSet<String>(defined);
             Jenkins jenkins = Jenkins.getInstance();
             if (jenkins != null) {
