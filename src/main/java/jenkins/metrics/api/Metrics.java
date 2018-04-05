@@ -47,11 +47,14 @@ import hudson.security.ACL;
 import hudson.security.Permission;
 import hudson.security.PermissionGroup;
 import hudson.security.PermissionScope;
+import hudson.triggers.SafeTimerTask;
 import hudson.util.PluginServletFilter;
 import hudson.util.StreamTaskListener;
 import hudson.util.TimeUnit2;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Map;
@@ -595,6 +598,20 @@ public class Metrics extends Plugin {
         /* package */
         static File getLogFile(Jenkins jenkins) {
             File logsRoot = new File(jenkins.getRootDir(), "logs");
+            try {
+                // FIXME : remove when 2.114+ See JENKINS-50291
+                final Method getLogsRoot = SafeTimerTask.class.getMethod("getLogsRoot");
+                logsRoot = (File) getLogsRoot.invoke(null);
+
+            } catch (NoSuchMethodException e) {
+                // Expected on < 2.114
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+                // Expected on < 2.114
+            } catch (InvocationTargetException e) {
+                e.printStackTrace();
+                // Expected on < 2.114
+            }
             return new File(logsRoot, "health-checker.log");
         }
 
