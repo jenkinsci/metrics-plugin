@@ -548,7 +548,7 @@ public class Metrics extends Plugin {
                             if (jenkins == null) {
                                 return;
                             }
-                            File logFile = new File(new File(jenkins.getRootDir(), "logs"), "health-checker.log");
+                            File logFile = getLogFile(jenkins);
                             if (!logFile.isFile()) {
                                 File oldFile = new File(jenkins.getRootDir(), HealthChecker.class.getName() + ".log");
                                 if (!logFile.getParentFile().isDirectory() && !logFile.getParentFile().mkdirs()) {
@@ -590,6 +590,12 @@ public class Metrics extends Plugin {
             } catch (Throwable t) {
                 logger.log(Level.SEVERE, HealthChecker.class.getName() + " thread failed with error", t);
             }
+        }
+
+        /* package */
+        static File getLogFile(Jenkins jenkins) {
+            File logsRoot = new File(jenkins.getRootDir(), "logs");
+            return new File(logsRoot, "health-checker.log");
         }
 
         /**
