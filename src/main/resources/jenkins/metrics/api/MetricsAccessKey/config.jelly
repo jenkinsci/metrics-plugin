@@ -51,7 +51,7 @@
     <f:checkbox title="${%Metrics}" field="canMetrics" default="true"/>
   </f:entry>
   <f:entry title="${%Origins}">
-    <f:textbox default="*"/>
+    <f:textbox field="origins" default="*"/>
   </f:entry>
   <f:entry title="">
     <div align="right">
