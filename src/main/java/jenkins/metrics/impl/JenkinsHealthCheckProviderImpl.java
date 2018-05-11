@@ -108,7 +108,7 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                         }
                         return Result.healthy();
                     }
-                }, ComputerSet.getMonitors().get(DiskSpaceMonitor.class) != null)
+                }, ComputerSet.getMonitors().get(TemporarySpaceMonitor.class) != null)
         );
     }
 }
