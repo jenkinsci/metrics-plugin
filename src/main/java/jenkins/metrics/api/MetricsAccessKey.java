@@ -36,6 +36,7 @@ import net.sf.json.JSONObject;
 import org.acegisecurity.AccessDeniedException;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
+import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
@@ -462,6 +463,18 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
                 }
             }
             return null;
+        }
+        
+        
+        /**
+         *
+         * Setter for the list of access keys
+         *
+         * @param accessKeys the list of  access keys to configure
+         */
+        @DataBoundSetter
+        public synchronized void setAccessKeys(List<MetricsAccessKey> accessKeys) {
+          this.accessKeys = accessKeys;
         }
 
         public HttpResponse cors(@CheckForNull String accessKey, final HttpResponse resp) {
