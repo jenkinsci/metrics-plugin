@@ -302,21 +302,21 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                 return value.getPending();
                             }
                         }).toMetricSet()),
-                metric(name("jenkins", "node", "count"), (jenkinsNodeTotalCount =
+                metric(name("jenkins", "allnodes", "count"), (jenkinsNodeTotalCount =
                         new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
                             @Override
                             protected Integer transform(NodeStats value) {
                                 return value.getNodeCount();
                             }
                         })).toMetricSet()),
-                metric(name("jenkins", "node", "online"), (jenkinsNodeOnlineCount =
+                metric(name("jenkins", "allnodes", "online"), (jenkinsNodeOnlineCount =
                         new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
                             @Override
                             protected Integer transform(NodeStats value) {
                                 return value.getNodeOnline();
                             }
                         })).toMetricSet()),
-                metric(name("jenkins", "node", "offline"),
+                metric(name("jenkins", "allnodes", "offline"),
                         new AutoSamplingHistogram(new DerivativeGauge<NodeStats, Integer>(jenkinsNodes) {
                             @Override
                             protected Integer transform(NodeStats value) {
