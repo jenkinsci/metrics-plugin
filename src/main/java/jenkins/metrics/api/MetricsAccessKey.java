@@ -332,6 +332,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         @GuardedBy("this")
         private List<MetricsAccessKey> accessKeys;
         private transient volatile Set<String> accessKeySet;
+        private boolean doPerComputerMetrics = true;
 
         public DescriptorImpl() {
             super();
@@ -351,6 +352,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         public synchronized boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             accessKeys = req.bindJSONToList(MetricsAccessKey.class, json.get("accessKeys"));
             accessKeySet = null;
+            doPerComputerMetrics = json.optString("doPerComputerMetrics").equals("true");
             save();
             return true;
         }
@@ -360,6 +362,11 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             return Collections.unmodifiableList(new ArrayList<MetricsAccessKey>(
                     accessKeys == null ? Collections.<MetricsAccessKey>emptyList() : accessKeys
             ));
+        }
+
+        @NonNull
+        public synchronized Boolean getDoPerComputerMetrics() {
+            return doPerComputerMetrics;
         }
 
         public void checkAccessKey(@CheckForNull String accessKey) {
