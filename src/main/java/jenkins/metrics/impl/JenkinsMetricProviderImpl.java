@@ -39,6 +39,7 @@ import hudson.model.Item;
 import hudson.model.ItemGroup;
 import hudson.model.Project;
 import hudson.model.TopLevelItem;
+import jenkins.metrics.api.MetricsAccessKey;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.metrics.api.MetricProvider;
 import jenkins.metrics.api.Metrics;
@@ -509,6 +510,16 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     }
 
     private synchronized Timer getOrCreateTimer(Computer computer) {
+        final Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
+            ? null
+            : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        if (!descriptor.getDoPerComputerMetrics()) {
+            return new Timer();
+        }
         Timer timer = computerBuildDurations.get(computer);
         if (timer == null) {
             timer = Metrics.metricRegistry().timer(name("jenkins", "node", computer.getName(), "builds"));
