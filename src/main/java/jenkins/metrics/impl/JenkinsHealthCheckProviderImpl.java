@@ -53,9 +53,6 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                     @Override
                     protected Result check() throws Exception {
                         Jenkins jenkins = Jenkins.getInstance();
-                        if (jenkins == null) {
-                            return Result.healthy();
-                        }
                         List<PluginManager.FailedPlugin> failedPlugins =
                                 jenkins.getPluginManager().getFailedPlugins();
                         if (failedPlugins.isEmpty()) {
@@ -76,7 +73,7 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                     protected Result check() throws Exception {
                         DiskSpaceMonitor m = ComputerSet.getMonitors().get(DiskSpaceMonitor.class);
                         Jenkins jenkins = Jenkins.getInstance();
-                        if (m == null || jenkins == null) {
+                        if (m == null) {
                             return Result.healthy();
                         }
                         for (Computer c : jenkins.getComputers()) {
@@ -95,7 +92,7 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                     protected Result check() throws Exception {
                         TemporarySpaceMonitor m = ComputerSet.getMonitors().get(TemporarySpaceMonitor.class);
                         Jenkins jenkins = Jenkins.getInstance();
-                        if (m == null || jenkins == null) {
+                        if (m == null) {
                             return Result.healthy();
                         }
                         for (Computer c : jenkins.getComputers()) {

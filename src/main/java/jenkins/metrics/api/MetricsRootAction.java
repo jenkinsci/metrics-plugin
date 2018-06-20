@@ -39,7 +39,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+import hudson.ExtensionList;
 import hudson.Util;
+import hudson.init.InitMilestone;
+import hudson.init.Initializer;
 import hudson.model.PeriodicWork;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
@@ -746,8 +749,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
                     output.write(jsonpCallback.getBytes("US-ASCII"));
                     output.write("(".getBytes("US-ASCII"));
                 }
-                Jenkins jenkins = Jenkins.getInstance();
-                Sampler sampler = jenkins == null ? null : jenkins.getExtensionList(PeriodicWork.class).get(Sampler.class);
+                Sampler sampler = ExtensionList.lookup(PeriodicWork.class).get(Sampler.class);
                 Map<Date, Object> sample = sampler == null
                         ? null
                         : (prefix == null && postfix == null ? sampler.sample() : sampler.sample(prefix, postfix));

@@ -40,13 +40,11 @@ public class JenkinsVersionsProviderImpl extends MetricProvider {
             Map<String, Metric> metrics = new LinkedHashMap<String, Metric>();
             metrics.put(name("jenkins", "versions", "core"), new VersionGauge(Jenkins.VERSION));
             final Jenkins jenkins = Jenkins.getInstance();
-            if (jenkins != null) {
-                final PluginManager pluginManager = jenkins.getPluginManager();
-                for (PluginWrapper p : pluginManager.getPlugins()) {
-                    if (p.isActive()) {
-                        metrics.put(name("jenkins", "versions", "plugin", p.getShortName()),
-                                new VersionGauge(p.getVersion()));
-                    }
+            final PluginManager pluginManager = jenkins.getPluginManager();
+            for (PluginWrapper p : pluginManager.getPlugins()) {
+                if (p.isActive()) {
+                    metrics.put(name("jenkins", "versions", "plugin", p.getShortName()),
+                            new VersionGauge(p.getVersion()));
                 }
             }
             set = metrics(metrics); // idempotent
