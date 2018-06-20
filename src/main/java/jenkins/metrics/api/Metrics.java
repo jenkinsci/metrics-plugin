@@ -153,7 +153,7 @@ public class Metrics extends Plugin {
 
     /**
      * Get the last health check results
-     * 
+     *
      * @return a map with health check name -&gt; health check result
      */
     @NonNull
@@ -289,19 +289,8 @@ public class Metrics extends Plugin {
             return;
         }
         LOGGER.log(Level.FINER, "Confirmed metrics plugin initialized");
-        for (MetricProvider p : jenkins.getExtensionList(MetricProvider.class)) {
-            LOGGER.log(Level.FINER, "Registering metric provider {0} (type {1})", new Object[]{p, p.getClass()});
-            plugin.metricRegistry.registerAll(p.getMetricSet());
-        }
-        for (HealthCheckProvider p : jenkins.getExtensionList(HealthCheckProvider.class)) {
-            LOGGER.log(Level.FINER, "Registering health check provider {0} (type {1})", new Object[]{p, p.getClass()});
-            Map<String, HealthCheck> healthChecks = p.getHealthChecks();
-            for (Map.Entry<String, HealthCheck> c : healthChecks.entrySet()) {
-                plugin.healthCheckRegistry.register(c.getKey(), c.getValue());
-            }
-            LOGGER.log(Level.FINER, "Registered health check provider {0} (type {1}) with {2} checks: {3}",
-                    new Object[] { p, p.getClass(), healthChecks.size(), healthChecks.keySet() });
-        }
+        MetricProviderListener.attach(plugin.metricRegistry);
+        HealthCheckProviderListener.attach(plugin.healthCheckRegistry);
         threadPoolForHealthChecks = new HealthChecksThreadPool(healthCheckRegistry());
         LOGGER.log(Level.FINE, "Metric provider and health check provider extensions registered");
     }
@@ -326,7 +315,7 @@ public class Metrics extends Plugin {
 
     /**
      * provides the health check related metrics.
-     * 
+     *
      * @deprecated use HealthCheckMetricsProvider
      */
     @Deprecated
