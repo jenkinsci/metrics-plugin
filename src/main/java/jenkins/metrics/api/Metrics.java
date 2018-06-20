@@ -77,6 +77,7 @@ import net.jcip.annotations.ThreadSafe;
 import org.acegisecurity.context.SecurityContext;
 import org.acegisecurity.context.SecurityContextHolder;
 import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.DoNotUse;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpResponse;
 
@@ -637,6 +638,7 @@ public class Metrics extends Plugin {
         @Initializer(
                 after = InitMilestone.EXTENSIONS_AUGMENTED
         )
+        @Restricted(DoNotUse.class)
         public static void dynamicInstallHack() {
             if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
                 // This is a dynamic plugin install

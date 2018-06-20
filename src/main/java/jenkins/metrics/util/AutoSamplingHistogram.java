@@ -47,6 +47,8 @@ import java.util.logging.Logger;
 import jenkins.metrics.api.Metrics;
 import jenkins.model.Jenkins;
 import jenkins.util.Timer;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.DoNotUse;
 
 /**
  * This is a {@link Histogram} that is derived from a {@link Gauge} by sampling it 4 times a minute.
@@ -155,6 +157,7 @@ public class AutoSamplingHistogram extends Histogram {
         @Initializer(
                 after = InitMilestone.EXTENSIONS_AUGMENTED
         )
+        @Restricted(DoNotUse.class)
         public static void dynamicInstallHack() {
             if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
                 // This is a dynamic plugin install

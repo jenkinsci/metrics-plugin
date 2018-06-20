@@ -78,6 +78,7 @@ import jenkins.model.Jenkins;
 import jenkins.util.Timer;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.DoNotUse;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
@@ -1105,6 +1106,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         @Initializer(
                 after = InitMilestone.EXTENSIONS_AUGMENTED
         )
+        @Restricted(DoNotUse.class)
         public static void dynamicInstallHack() {
             if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
                 // This is a dynamic plugin install
