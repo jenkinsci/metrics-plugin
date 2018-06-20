@@ -131,6 +131,17 @@
       <artifactId>jackson2-api</artifactId>
       <version>2.8.10.1</version>
     </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins</groupId>
+      <artifactId>variant</artifactId>
+      <version>1.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.jenkins-ci.plugins.workflow</groupId>
+      <artifactId>workflow-durable-task-step</artifactId>
+      <version>2.15</version>
+      <optional>true</optional>
+    </dependency>
     <!-- jenkins dependencies -->
     <!-- test dependencies -->
     <dependency>
