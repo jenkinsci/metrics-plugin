@@ -47,6 +47,7 @@ import hudson.model.PeriodicWork;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
 import hudson.util.IOUtils;
+import hudson.util.VersionNumber;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -74,6 +75,7 @@ import javax.servlet.http.HttpServletResponse;
 import jenkins.metrics.util.ExponentialLeakyBucket;
 import jenkins.metrics.util.NameRewriterMetricRegistry;
 import jenkins.model.Jenkins;
+import jenkins.util.Timer;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
@@ -1095,6 +1097,24 @@ public class MetricsRootAction implements UnprotectedRootAction {
                     return null;
                 } finally {
                     IOUtils.closeQuietly(gzis);
+                }
+            }
+        }
+
+        // TODO Remove once Jenkins 2.129+ see JENKINS-28983
+        @Initializer(
+                after = InitMilestone.EXTENSIONS_AUGMENTED
+        )
+        public static void dynamicInstallHack() {
+            if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
+                // This is a dynamic plugin install
+                VersionNumber version = Jenkins.getVersion();
+                if (version != null && version.isOlderThan(new VersionNumber("2.129"))) {
+                    PeriodicWork p = ExtensionList.lookup(PeriodicWork.class).get(Sampler.class);
+                    if (p != null) {
+                        Timer.get().scheduleAtFixedRate(p, p.getInitialDelay(), p.getRecurrencePeriod(),
+                                TimeUnit.MILLISECONDS);
+                    }
                 }
             }
         }

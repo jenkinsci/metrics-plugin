@@ -52,6 +52,7 @@ import hudson.triggers.SafeTimerTask;
 import hudson.util.PluginServletFilter;
 import hudson.util.StreamTaskListener;
 import hudson.util.TimeUnit2;
+import hudson.util.VersionNumber;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -629,6 +630,24 @@ public class Metrics extends Plugin {
                 }
             } else if (lastUnhealthy != null) {
                 LOGGER.log(Level.INFO, "All health checks are reporting as healthy");
+            }
+        }
+
+        // TODO Remove once Jenkins 2.129+ see JENKINS-28983
+        @Initializer(
+                after = InitMilestone.EXTENSIONS_AUGMENTED
+        )
+        public static void dynamicInstallHack() {
+            if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
+                // This is a dynamic plugin install
+                VersionNumber version = Jenkins.getVersion();
+                if (version != null && version.isOlderThan(new VersionNumber("2.129"))) {
+                    PeriodicWork p = ExtensionList.lookup(PeriodicWork.class).get(HealthChecker.class);
+                    if (p != null) {
+                        jenkins.util.Timer.get().scheduleAtFixedRate(p, p.getInitialDelay(), p.getRecurrencePeriod(),
+                                TimeUnit.MILLISECONDS);
+                    }
+                }
             }
         }
     }

@@ -37,6 +37,8 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.ExtensionList;
 import hudson.PluginWrapper;
+import hudson.init.InitMilestone;
+import hudson.init.Initializer;
 import hudson.model.AbstractProject;
 import hudson.model.Action;
 import hudson.model.Computer;
@@ -56,6 +58,7 @@ import hudson.model.queue.WorkUnit;
 import hudson.model.queue.WorkUnitContext;
 import hudson.security.ACL;
 import hudson.security.ACLContext;
+import hudson.util.VersionNumber;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -625,6 +628,24 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 return;
             }
             instance.updateMetrics();
+        }
+
+        // TODO Remove once Jenkins 2.129+ see JENKINS-28983
+        @Initializer(
+                after = InitMilestone.EXTENSIONS_AUGMENTED
+        )
+        public static void dynamicInstallHack() {
+            if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
+                // This is a dynamic plugin install
+                VersionNumber version = Jenkins.getVersion();
+                if (version != null && version.isOlderThan(new VersionNumber("2.129"))) {
+                    PeriodicWork p = ExtensionList.lookup(PeriodicWork.class).get(PeriodicWorkImpl.class);
+                    if (p != null) {
+                        jenkins.util.Timer.get().scheduleAtFixedRate(p, p.getInitialDelay(), p.getRecurrencePeriod(),
+                                TimeUnit.MILLISECONDS);
+                    }
+                }
+            }
         }
 
     }
