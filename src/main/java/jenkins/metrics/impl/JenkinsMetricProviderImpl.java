@@ -844,9 +844,11 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         .collect(Collectors.toCollection(HashSet::new));
                 // remove the currently known IDs from the previous list of known IDs
                 previousIds.removeAll(currentIds);
-                // now remove from the totals the ones that were previously known (at last trim) but are
-                // no longer known, we need to do it this was as otherwise any IDs that are added while
-                // we trim
+                // now remove from the totals the ones that were previously known (at last trim()) but are
+                // no longer known. We need to do it this was as otherwise any IDs that are added while
+                // we trim() would be missing from the currentIds and hence the naive
+                //   totals.keySet().removeAll(currentIds)
+                // would mean we lose full tracking for any items scheduled during a trim()
                 totals.keySet().removeAll(previousIds);
                 previousIds = currentIds;
             }

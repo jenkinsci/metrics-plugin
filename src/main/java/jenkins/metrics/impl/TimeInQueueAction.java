@@ -257,7 +257,8 @@ public class TimeInQueueAction implements Serializable, RunAction2 {
     @Exported(visibility = 2)
     public double getExecutorUtilization() {
         long buildingDurationMillis = getBuildingDurationMillis();
-        return buildingDurationMillis > 0 ? (getExecutingTimeMillis() * 100 / buildingDurationMillis) / 100.0 : 1.0;
+        // the result should be rounded to 2 decimals
+        return buildingDurationMillis > 0 ? Math.round(getExecutingTimeMillis() * 100.0 / buildingDurationMillis) / 100.0 : 1.0;
     }
 
     @Exported(visibility = 2)
