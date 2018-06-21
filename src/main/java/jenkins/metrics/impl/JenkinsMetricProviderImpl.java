@@ -127,7 +127,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     /**
      * The build durations per computer.
      */
-    private Map<Computer, Timer> computerBuildDurations = new HashMap<>();
+    private Map<Computer, Timer> computerBuildDurations = new WeakHashMap<>();
     /**
      * The rate at which jobs are being scheduled.
      */
@@ -553,12 +553,8 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     }
 
     private synchronized Timer getOrCreateTimer(Computer computer) {
-        Timer timer = computerBuildDurations.get(computer);
-        if (timer == null) {
-            timer = Metrics.metricRegistry().timer(name("jenkins", "node", computer.getName(), "builds"));
-            computerBuildDurations.put(computer, timer);
-        }
-        return timer;
+        return computerBuildDurations.computeIfAbsent(computer,
+                c -> Metrics.metricRegistry().timer(name("jenkins", "node", c.getName(), "builds")));
     }
 
     private static class QueueStats {
