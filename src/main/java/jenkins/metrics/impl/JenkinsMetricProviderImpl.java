@@ -438,7 +438,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 metric(name("jenkins", "job", "execution", "time"), (jenkinsJobExecutionTime = new Timer())),
                 metric(name("jenkins", "task", "queuing", "duration"), (jenkinsTaskQueueDuration = new Timer())),
                 metric(name("jenkins", "task", "waiting", "duration"), (jenkinsTaskWaitingDuration = new Timer())),
-                metric(name("jenkins", "task", "blocked", "duration"), (jenkinsTaskBlockedDuration= new Timer())),
+                metric(name("jenkins", "task", "blocked", "duration"), (jenkinsTaskBlockedDuration = new Timer())),
                 metric(name("jenkins", "task", "buildable", "duration"), (jenkinsTaskBuildableDuration = new Timer())),
                 metric(name("jenkins", "task", "execution", "duration"), (jenkinsTaskExecutionDuration = new Timer())),
                 metric(name("jenkins", "job", "total", "duration"), (jenkinsJobTotalDuration = new Timer())),
@@ -492,6 +492,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         );
     }
 
+    private static boolean computerBuildDurationTimers(String s, Metric metric) {
+        return s.startsWith("jenkins.node.")
+                && s.endsWith(".builds")
+                && s.length() > ("jenkins.node." + ".builds").length()
+                && metric instanceof Timer;
+    }
+
     private MetricSet runCounters() {
         final Map<String, Metric> runCounters = new HashMap<>();
         for (String resultName : ResultRunListener.ALL) {
@@ -533,23 +540,20 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     private synchronized void updateMetrics() {
         final Jenkins jenkins = Jenkins.getInstance();
-        Set<Computer> forRetention = new HashSet<>();
+        Set<String> nodeMetricNames = new HashSet<>();
         for (Node node : jenkins.getNodes()) {
+            nodeMetricNames.add(name("jenkins", "node", node.getNodeName(), "builds"));
             Computer computer = node.toComputer();
-            if (computer == null) {
-                continue;
+            if (computer != null) {
+                getOrCreateTimer(computer);
             }
-            forRetention.add(computer);
-            getOrCreateTimer(computer);
         }
         MetricRegistry metricRegistry = Metrics.metricRegistry();
-        computerBuildDurations.keySet().forEach(key -> {
-            if (!forRetention.contains(key)) {
-                // purge dead nodes
-                metricRegistry.remove(name("jenkins", "node", key.getName(), "builds"));
-            }
-        });
-        computerBuildDurations.keySet().retainAll(forRetention);
+        metricRegistry.getTimers(JenkinsMetricProviderImpl::computerBuildDurationTimers)
+                .keySet()
+                .stream()
+                .filter(name -> !nodeMetricNames.contains(name))
+                .forEach(metricRegistry::remove);
     }
 
     private synchronized Timer getOrCreateTimer(Computer computer) {
@@ -980,7 +984,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
             if (instance != null && instance.jenkinsTaskBuildableDuration != null) {
                 synchronized (buildable) {
-                    buildable.computeIfAbsent(bi, (x)-> instance.jenkinsTaskBuildableDuration.time());
+                    buildable.computeIfAbsent(bi, (x) -> instance.jenkinsTaskBuildableDuration.time());
                 }
             }
             trim();
