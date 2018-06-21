@@ -31,14 +31,14 @@
           ${%blurb}
         </p>
         <ul>
-          <li>${%waiting(it.queuingDurationString)}</li>
+          <li>${%waiting(it.queuingTimeString)}</li>
           <li>${%building(it.buildingDurationString)}</li>
           <li>${%total(it.totalDurationString)}</li>
         </ul>
       </j:when>
       <j:otherwise>
         <p>
-          ${%waiting_still_running(it.queuingDurationString)}
+          ${%waiting_still_running(it.queuingTimeString)}
         </p>
       </j:otherwise>
     </j:choose>
