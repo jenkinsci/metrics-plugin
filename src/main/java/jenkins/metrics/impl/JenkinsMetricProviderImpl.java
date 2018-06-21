@@ -81,6 +81,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -193,8 +194,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             @Override
             protected QueueStats loadValue() {
                 try (ACLContext ctx = ACL.as(ACL.SYSTEM)) {
-                    Jenkins jenkins = Jenkins.getInstance();
-                    Queue queue = jenkins.getQueue();
+                    Queue queue = Jenkins.getInstance().getQueue();
                     int length = 0;
                     int blocked = 0;
                     int buildable = 0;
@@ -202,15 +202,25 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     int stuck = 0;
                     if (queue != null) {
                         for (Queue.Item i : queue.getItems()) {
-                            length++;
-                            if (i.isBlocked()) {
-                                blocked++;
-                            }
-                            if (i.isBuildable()) {
-                                buildable++;
-                            }
-                            if (i.isStuck()) {
-                                stuck++;
+                            if (i != null) {
+                                length++;
+                                try {
+                                    if (i.isBlocked()) {
+                                        blocked++;
+                                    }
+                                    if (i.isBuildable()) {
+                                        buildable++;
+                                    }
+                                    if (i.isStuck()) {
+                                        stuck++;
+                                    }
+                                } catch (Exception e) {
+                                    LOGGER.log(Level.FINE, "Uncaught exception recording queue statistics", e);
+                                } catch (OutOfMemoryError e) {
+                                    throw e;
+                                } catch (Throwable e) {
+                                    LOGGER.log(Level.FINE, "Uncaught throwable recording queue statistics", e);
+                                }
                             }
                         }
                     }
