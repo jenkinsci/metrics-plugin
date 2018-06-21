@@ -564,6 +564,10 @@ public class Metrics extends Plugin {
          * @throws InterruptedException if interrupted.
          */
         private void execute(TaskListener listener) throws IOException, InterruptedException {
+            if (Jenkins.getInstance().getInitLevel().compareTo(InitMilestone.COMPLETED) < 0) {
+                // skip health checks until Jenkins is fully started.
+                return;
+            }
             reindexAccessKeys();
             HealthCheckRegistry registry = healthCheckRegistry();
             // update the active health checks
