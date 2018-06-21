@@ -37,6 +37,7 @@ import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.ExtensionList;
 import hudson.PluginWrapper;
+import hudson.Util;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
 import hudson.model.AbstractProject;
@@ -53,7 +54,6 @@ import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.model.TopLevelItem;
 import hudson.model.listeners.RunListener;
-import hudson.model.queue.FutureImpl;
 import hudson.model.queue.QueueListener;
 import hudson.model.queue.WorkUnit;
 import hudson.model.queue.WorkUnitContext;
@@ -73,20 +73,23 @@ import java.util.Set;
 import java.util.Stack;
 import java.util.WeakHashMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import jenkins.metrics.api.MetricProvider;
 import jenkins.metrics.api.Metrics;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.model.Jenkins;
-import org.acegisecurity.context.SecurityContext;
-import org.acegisecurity.context.SecurityContextHolder;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.DoNotUse;
-import org.kohsuke.accmod.restrictions.NoExternalUse;
 
 import static com.codahale.metrics.MetricRegistry.name;
 
@@ -133,10 +136,6 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
      */
     private Timer jenkinsJobQueueDuration;
     /**
-     * The amount of time tasks stay in the queue.
-     */
-    private Timer jenkinsTaskQueueDuration;
-    /**
      * The amount of time a job is waiting for its quiet period to expire.
      */
     private Timer jenkinsJobWaitingDuration;
@@ -149,9 +148,37 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
      */
     private Timer jenkinsJobBuildableDuration;
     /**
-     * The amount of time jobs are building.
+     * The amount of time jobs are building (start to finish).
      */
     private Timer jenkinsJobBuildingDuration;
+    /**
+     * The rate at which tasks are being scheduled.
+     */
+    private Meter jenkinsTaskScheduleRate;
+    /**
+     * The amount of time tasks stay in the queue.
+     */
+    private Timer jenkinsTaskQueueDuration;
+    /**
+     * The amount of time a task is waiting for its quiet period to expire.
+     */
+    private Timer jenkinsTaskWaitingDuration;
+    /**
+     * The amount of time tasks are blocked waiting for a resource that has a restricted sharing policy.
+     */
+    private Timer jenkinsTaskBlockedDuration;
+    /**
+     * The amount of time tasks are buildable and waiting for an executor.
+     */
+    private Timer jenkinsTaskBuildableDuration;
+    /**
+     * The amount of time tasks are executing.
+     */
+    private Timer jenkinsTaskExecutionDuration;
+    /**
+     * The amount of time jobs are execute (cumulative).
+     */
+    private Timer jenkinsJobExecutionTime;
     /**
      * Run Results.
      */
@@ -357,6 +384,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             }
                         }).toMetricSet()),
                 metric(name("jenkins", "job", "scheduled"), (jenkinsJobScheduleRate = new Meter())),
+                metric(name("jenkins", "task", "scheduled"), (jenkinsTaskScheduleRate = new Meter())),
                 metric(name("jenkins", "job", "count"),
                         new AutoSamplingHistogram(new DerivativeGauge<JobStats, Integer>(jobStats) {
                             @Override
@@ -393,11 +421,16 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             }
                         }).toMetricSet()),
                 metric(name("jenkins", "job", "queuing", "duration"), (jenkinsJobQueueDuration = new Timer())),
-                metric(name("jenkins", "task", "queuing", "duration"), (jenkinsTaskQueueDuration = new Timer())),
                 metric(name("jenkins", "job", "waiting", "duration"), (jenkinsJobWaitingDuration = new Timer())),
                 metric(name("jenkins", "job", "blocked", "duration"), (jenkinsJobBlockedDuration = new Timer())),
                 metric(name("jenkins", "job", "buildable", "duration"), (jenkinsJobBuildableDuration = new Timer())),
                 metric(name("jenkins", "job", "building", "duration"), (jenkinsJobBuildingDuration = new Timer())),
+                metric(name("jenkins", "job", "execution", "time"), (jenkinsJobExecutionTime = new Timer())),
+                metric(name("jenkins", "task", "queuing", "duration"), (jenkinsTaskQueueDuration = new Timer())),
+                metric(name("jenkins", "task", "waiting", "duration"), (jenkinsTaskWaitingDuration = new Timer())),
+                metric(name("jenkins", "task", "blocked", "duration"), (jenkinsTaskBlockedDuration= new Timer())),
+                metric(name("jenkins", "task", "buildable", "duration"), (jenkinsTaskBuildableDuration = new Timer())),
+                metric(name("jenkins", "task", "execution", "duration"), (jenkinsTaskExecutionDuration = new Timer())),
                 metric(name("jenkins", "job", "total", "duration"), (jenkinsJobTotalDuration = new Timer())),
                 metric(name("jenkins", "plugins", "active"), new CachedGauge<Integer>(5, TimeUnit.MINUTES) {
                     @Override
@@ -728,16 +761,25 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 }
             }
             JenkinsMetricProviderImpl instance = instance();
-            if (instance != null && instance.jenkinsJobBuildingDuration != null) {
-                instance.jenkinsJobBuildingDuration.update(run.getDuration(), TimeUnit.MILLISECONDS);
-            }
             TimeInQueueAction action = run.getAction(TimeInQueueAction.class);
             if (action != null && instance != null) {
                 if (instance.jenkinsJobQueueDuration != null) {
                     instance.jenkinsJobQueueDuration.update(action.getQueuingTimeMillis(), TimeUnit.MILLISECONDS);
                 }
+                if (instance.jenkinsJobBlockedDuration != null) {
+                    instance.jenkinsJobBlockedDuration.update(action.getBlockedTimeMillis(), TimeUnit.MILLISECONDS);
+                }
+                if (instance.jenkinsJobBuildableDuration != null) {
+                    instance.jenkinsJobBuildableDuration.update(action.getBuildableTimeMillis(), TimeUnit.MILLISECONDS);
+                }
+                if (instance.jenkinsJobWaitingDuration != null) {
+                    instance.jenkinsJobWaitingDuration.update(action.getWaitingTimeMillis(), TimeUnit.MILLISECONDS);
+                }
                 if (instance.jenkinsJobTotalDuration != null) {
                     instance.jenkinsJobTotalDuration.update(action.getTotalDurationMillis(), TimeUnit.MILLISECONDS);
+                }
+                if (instance.jenkinsJobExecutionTime != null) {
+                    instance.jenkinsJobExecutionTime.update(action.getExecutingTimeMillis(), TimeUnit.MILLISECONDS);
                 }
             }
         }
@@ -752,8 +794,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         @Override
         public boolean shouldSchedule(Queue.Task p, List<Action> actions) {
             JenkinsMetricProviderImpl instance = instance();
-            if (instance != null && instance.jenkinsJobScheduleRate != null) {
-                instance.jenkinsJobScheduleRate.mark();
+            if (instance != null) {
+                if (p instanceof Job && instance.jenkinsJobScheduleRate != null) {
+                    instance.jenkinsJobScheduleRate.mark();
+                }
+                if (instance.jenkinsTaskScheduleRate != null) {
+                    instance.jenkinsTaskScheduleRate.mark();
+                }
             }
             return true;
         }
@@ -761,6 +808,11 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     @Extension
     public static class ScheduledRate extends QueueListener {
+
+        /**
+         * How often we trim the {@link ScheduledRate#totals} map.
+         */
+        private static final long TRIM_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
 
         /**
          * Our executor service for tracing queue subtasks.
@@ -773,9 +825,33 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         private final Map<Queue.BlockedItem, Timer.Context> blocked = new WeakHashMap<>();
         private final Map<Queue.BuildableItem, Timer.Context> buildable = new WeakHashMap<>();
         private final Map<Queue.WaitingItem, Timer.Context> waiting = new WeakHashMap<>();
+        private final AtomicLong nextTrim = new AtomicLong(System.nanoTime());
+        private final ConcurrentMap<Long, ItemTotals> totals = new ConcurrentHashMap<>();
+        private Set<Long> previousIds = new HashSet<>();
 
         public static ScheduledRate instance() {
             return ExtensionList.lookup(QueueListener.class).get(ScheduledRate.class);
+        }
+
+        private void trim() {
+            long next = nextTrim.get();
+            if (next - System.nanoTime() < 0L && nextTrim.compareAndSet(next, next + TRIM_INTERVAL_NANOS)) {
+                // we won the trim lottery
+                Queue queue = Jenkins.getInstance().getQueue();
+                // get the IDs that are currently known
+                Set<Long> currentIds = Stream.concat(Stream.of(queue.getItems()), queue.getLeftItems().stream())
+                        .map(Queue.Item::getId)
+                        .collect(Collectors.toCollection(HashSet::new));
+                // remove the currently known IDs from the previous list of known IDs
+                previousIds.removeAll(currentIds);
+                // now remove from the totals the ones that were previously known (at last trim()) but are
+                // no longer known. We need to do it this was as otherwise any IDs that are added while
+                // we trim() would be missing from the currentIds and hence the naive
+                //   totals.keySet().removeAll(currentIds)
+                // would mean we lose full tracking for any items scheduled during a trim()
+                totals.keySet().removeAll(previousIds);
+                previousIds = currentIds;
+            }
         }
 
         public void addAction(Run run) {
@@ -807,10 +883,16 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             if (instance != null && instance.jenkinsTaskQueueDuration != null) {
                 instance.jenkinsTaskQueueDuration.update(millisecondsInQueue, TimeUnit.MILLISECONDS);
             }
-            final WorkUnitContext workUnitContext = li.outcome;
-            if (workUnitContext != null) {
+            final WorkUnitContext wuc = li.outcome;
+            if (wuc != null) {
+                ItemTotals t = totals.getOrDefault(li.getId(), ItemTotals.EMPTY);
                 synchronized (actions) {
-                    actions.put(workUnitContext, new TimeInQueueAction(millisecondsInQueue));
+                    actions.put(wuc, new TimeInQueueAction(
+                            millisecondsInQueue,
+                            TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                            TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                            TimeUnit.NANOSECONDS.toMillis(t.waiting.get())
+                    ));
                 }
                 Queue.Task owner = li.task.getOwnerTask();
                 while (owner != owner.getOwnerTask()) {
@@ -818,14 +900,40 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 }
                 if (owner != li.task) {
                     // this is a SubTask
-                    CompletableFuture.supplyAsync(executableFrom(workUnitContext.future), executorService)
+                    CompletableFuture.supplyAsync(asSupplier(wuc.future.getStartCondition()), executorService)
                             .thenApply(RunResolver::resolve)
-                            .thenAccept((run) -> {
-                                final long queuingDurationMillis = System.currentTimeMillis() - li.getInQueueSince();
-                                run.ifPresent(r -> r.addAction(new SubTaskTimeInQueueAction(queuingDurationMillis)));
+                            .thenAccept((optionalRun) -> {
+                                long startTimeMillis = System.currentTimeMillis();
+                                long queuingDurationMillis = startTimeMillis - li.getInQueueSince();
+                                optionalRun.ifPresent(run -> {
+                                    CompletableFuture.supplyAsync(asSupplier(wuc.future), executorService)
+                                            .thenRun(() -> {
+                                                long executionDurationMillis =
+                                                        System.currentTimeMillis() - startTimeMillis;
+                                                run.addAction(new SubTaskTimeInQueueAction(
+                                                        queuingDurationMillis,
+                                                        TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                                                        TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                                                        TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
+                                                        executionDurationMillis,
+                                                        wuc.getWorkUnits().size()
+                                                ));
+                                                if (instance != null
+                                                        && instance.jenkinsTaskExecutionDuration != null) {
+                                                    instance.jenkinsTaskExecutionDuration.update(
+                                                            executionDurationMillis, TimeUnit.MILLISECONDS
+                                                    );
+                                                }
+                                            });
+                                });
                             });
                 }
+                if (li.task instanceof Job) {
+
+                }
             }
+            totals.remove(li.getId());
+            trim();
         }
 
         /**
@@ -834,13 +942,14 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         @Override
         public void onEnterBlocked(Queue.BlockedItem bi) {
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
-            if (instance != null && instance.jenkinsJobBlockedDuration != null) {
+            if (instance != null && instance.jenkinsTaskBlockedDuration != null) {
                 synchronized (blocked) {
                     if (!blocked.containsKey(bi)) {
-                        blocked.put(bi, instance.jenkinsJobBlockedDuration.time());
+                        blocked.put(bi, instance.jenkinsTaskBlockedDuration.time());
                     }
                 }
             }
+            trim();
         }
 
         /**
@@ -851,9 +960,10 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             synchronized (blocked) {
                 Timer.Context context = blocked.remove(bi);
                 if (context != null) {
-                    context.stop();
+                    totals.computeIfAbsent(bi.getId(), ItemTotals::new).blocked.getAndAdd(context.stop());
                 }
             }
+            trim();
         }
 
         /**
@@ -862,13 +972,12 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         @Override
         public void onEnterBuildable(Queue.BuildableItem bi) {
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
-            if (instance != null && instance.jenkinsJobBuildableDuration != null) {
+            if (instance != null && instance.jenkinsTaskBuildableDuration != null) {
                 synchronized (buildable) {
-                    if (!buildable.containsKey(bi)) {
-                        buildable.put(bi, instance.jenkinsJobBuildableDuration.time());
-                    }
+                    buildable.computeIfAbsent(bi, (x)-> instance.jenkinsTaskBuildableDuration.time());
                 }
             }
+            trim();
         }
 
         /**
@@ -879,9 +988,10 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             synchronized (buildable) {
                 Timer.Context context = buildable.remove(bi);
                 if (context != null) {
-                    context.stop();
+                    totals.computeIfAbsent(bi.getId(), ItemTotals::new).buildable.getAndAdd(context.stop());
                 }
             }
+            trim();
         }
 
         /**
@@ -890,13 +1000,12 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         @Override
         public void onEnterWaiting(Queue.WaitingItem wi) {
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
-            if (instance != null && instance.jenkinsJobWaitingDuration != null) {
+            if (instance != null && instance.jenkinsTaskWaitingDuration != null) {
                 synchronized (waiting) {
-                    if (!waiting.containsKey(wi)) {
-                        waiting.put(wi, instance.jenkinsJobWaitingDuration.time());
-                    }
+                    waiting.computeIfAbsent(wi, (x) -> instance.jenkinsTaskWaitingDuration.time());
                 }
             }
+            trim();
         }
 
         /**
@@ -907,16 +1016,39 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             synchronized (waiting) {
                 Timer.Context context = waiting.remove(wi);
                 if (context != null) {
-                    context.stop();
+                    totals.computeIfAbsent(wi.getId(), ItemTotals::new).waiting.getAndAdd(context.stop());
                 }
+            }
+            trim();
+        }
+
+        private static class ItemTotals {
+
+            private static final ItemTotals EMPTY = new ItemTotals(null);
+
+            private final AtomicLong blocked = new AtomicLong();
+            private final AtomicLong buildable = new AtomicLong();
+            private final AtomicLong waiting = new AtomicLong();
+
+            private ItemTotals(Long ignore) {
+
+            }
+
+            @Override
+            public String toString() {
+                return "ItemTotals{" +
+                        "blocked=" + Util.getTimeSpanString(TimeUnit.NANOSECONDS.toMillis(blocked.get())) +
+                        ", buildable=" + Util.getTimeSpanString(TimeUnit.NANOSECONDS.toMillis(buildable.get())) +
+                        ", waiting=" + Util.getTimeSpanString(TimeUnit.NANOSECONDS.toMillis(waiting.get())) +
+                        '}';
             }
         }
     }
 
-    private static Supplier<Queue.Executable> executableFrom(FutureImpl future) {
+    private static <V> Supplier<V> asSupplier(Future<V> future) {
         return () -> {
             try {
-                return future.waitForStart();
+                return future.get();
             } catch (Throwable t) {
                 sneakyThrow(t);
                 throw new RuntimeException(t);
