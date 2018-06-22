@@ -69,6 +69,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
 import java.util.WeakHashMap;
@@ -87,6 +88,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import jenkins.metrics.api.MetricProvider;
 import jenkins.metrics.api.Metrics;
+import jenkins.metrics.api.QueueItemMetricsEvent;
+import jenkins.metrics.api.QueueItemMetricsListener;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.model.Jenkins;
 import org.kohsuke.accmod.Restricted;
@@ -893,9 +896,9 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             if (instance != null && instance.jenkinsTaskQueueDuration != null) {
                 instance.jenkinsTaskQueueDuration.update(millisecondsInQueue, TimeUnit.MILLISECONDS);
             }
+            ItemTotals t = totals.getOrDefault(li.getId(), ItemTotals.EMPTY);
             final WorkUnitContext wuc = li.outcome;
             if (wuc != null) {
-                ItemTotals t = totals.getOrDefault(li.getId(), ItemTotals.EMPTY);
                 synchronized (actions) {
                     actions.put(wuc, new TimeInQueueAction(
                             millisecondsInQueue,
@@ -908,42 +911,99 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 while (owner != owner.getOwnerTask()) {
                     owner = owner.getOwnerTask();
                 }
-                if (owner != li.task) {
-                    // this is a SubTask
-                    CompletableFuture.supplyAsync(asSupplier(wuc.future.getStartCondition()), executorService)
-                            .thenApply(RunResolver::resolve)
-                            .thenAccept((optionalRun) -> {
-                                long startTimeMillis = System.currentTimeMillis();
-                                long queuingDurationMillis = startTimeMillis - li.getInQueueSince();
-                                optionalRun.ifPresent(run -> {
-                                    CompletableFuture.supplyAsync(asSupplier(wuc.future), executorService)
-                                            .thenRun(() -> {
-                                                long executionDurationMillis =
-                                                        System.currentTimeMillis() - startTimeMillis;
-                                                run.addAction(new SubTaskTimeInQueueAction(
+                boolean subTask = owner != li.task;
+                CompletableFuture.supplyAsync(asSupplier(wuc.future.getStartCondition()), executorService)
+                        .thenAccept((executable) -> {
+                            long startTimeMillis = System.currentTimeMillis();
+                            long queuingDurationMillis = startTimeMillis - li.getInQueueSince();
+                            QueueItemMetricsListener.notifyStarted(new QueueItemMetricsEvent(
+                                    li,
+                                    QueueItemMetricsEvent.State.STARTED,
+                                    RunResolver.resolve(executable).orElse(null),
+                                    executable,
+                                    queuingDurationMillis,
+                                    TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
+                                    TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                                    TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                                    null,
+                                    wuc.getWorkUnits().size())
+                            );
+                            CompletableFuture.supplyAsync(asSupplier(wuc.future), executorService)
+                                    .thenRun(() -> {
+                                        long executionDurationMillis =
+                                                System.currentTimeMillis() - startTimeMillis;
+                                        // the run resolver may only work *after* the executable finished
+                                        // as it may rely on state that gets inferred during the start
+                                        // thus we re-resolve after the executable finished
+                                        Optional<Run<?, ?>> run = RunResolver.resolve(executable);
+                                        if (subTask) {
+                                            run.ifPresent(r -> r.addAction(new SubTaskTimeInQueueAction(
+                                                    queuingDurationMillis,
+                                                    TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                                                    TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                                                    TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
+                                                    executionDurationMillis,
+                                                    wuc.getWorkUnits().size()
+                                            )));
+                                        }
+                                        QueueItemMetricsListener.notifyFinished(new QueueItemMetricsEvent(
+                                                        li,
+                                                        QueueItemMetricsEvent.State.FINISHED,
+                                                        run.orElse(null),
+                                                        executable,
                                                         queuingDurationMillis,
+                                                        TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
                                                         TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
                                                         TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
-                                                        TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
                                                         executionDurationMillis,
                                                         wuc.getWorkUnits().size()
-                                                ));
-                                                if (instance != null
-                                                        && instance.jenkinsTaskExecutionDuration != null) {
-                                                    instance.jenkinsTaskExecutionDuration.update(
-                                                            executionDurationMillis, TimeUnit.MILLISECONDS
-                                                    );
-                                                }
-                                            });
-                                });
-                            });
-                }
-                if (li.task instanceof Job) {
-
-                }
+                                                )
+                                        );
+                                        if (instance != null
+                                                && instance.jenkinsTaskExecutionDuration != null) {
+                                            instance.jenkinsTaskExecutionDuration.update(
+                                                    executionDurationMillis, TimeUnit.MILLISECONDS
+                                            );
+                                        }
+                                    });
+                        });
+            } else {
+                QueueItemMetricsEvent m = new QueueItemMetricsEvent(
+                        li,
+                        QueueItemMetricsEvent.State.CANCELLED,
+                        null,
+                        null,
+                        System.currentTimeMillis() - li.getInQueueSince(),
+                        TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                        TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                        TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
+                        null,
+                        null
+                );
+                executorService.submit(()-> QueueItemMetricsListener.notifyCancelled(m));
             }
             totals.remove(li.getId());
             trim();
+        }
+
+        private void checkEnterQueue(Queue.Item i) {
+            totals.computeIfAbsent(i.getId(), id -> {
+                QueueItemMetricsEvent m = new QueueItemMetricsEvent(
+                        i,
+                        QueueItemMetricsEvent.State.QUEUED,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+                executorService.submit(() -> {
+                    QueueItemMetricsListener.notifyStarted(m);
+                });
+                return new ItemTotals(id);
+            });
         }
 
         /**
@@ -951,6 +1011,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
          */
         @Override
         public void onEnterBlocked(Queue.BlockedItem bi) {
+            checkEnterQueue(bi);
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
             if (instance != null && instance.jenkinsTaskBlockedDuration != null) {
                 synchronized (blocked) {
@@ -981,6 +1042,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
          */
         @Override
         public void onEnterBuildable(Queue.BuildableItem bi) {
+            checkEnterQueue(bi);
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
             if (instance != null && instance.jenkinsTaskBuildableDuration != null) {
                 synchronized (buildable) {
@@ -1009,6 +1071,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
          */
         @Override
         public void onEnterWaiting(Queue.WaitingItem wi) {
+            checkEnterQueue(wi);
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
             if (instance != null && instance.jenkinsTaskWaitingDuration != null) {
                 synchronized (waiting) {
