@@ -210,7 +210,7 @@ public final class QueueItemMetricsEvent {
      * @return the {@link Node#getAssignedLabels()} of all the executor slots occupied by this task,
      * if the task has been started, otherwise {@link Optional#empty()}.
      */
-    @CheckForNull
+    @NonNull
     public Optional<List<Set<LabelAtom>>> getConsumedLabelAtoms() {
         return Optional.ofNullable(consumedLabelAtoms);
     }
