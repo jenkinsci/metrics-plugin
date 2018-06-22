@@ -47,12 +47,14 @@ import hudson.model.Executor;
 import hudson.model.Item;
 import hudson.model.ItemGroup;
 import hudson.model.Job;
+import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.PeriodicWork;
 import hudson.model.Queue;
 import hudson.model.Run;
 import hudson.model.TaskListener;
 import hudson.model.TopLevelItem;
+import hudson.model.labels.LabelAtom;
 import hudson.model.listeners.RunListener;
 import hudson.model.queue.QueueListener;
 import hudson.model.queue.WorkUnit;
@@ -64,6 +66,7 @@ import hudson.util.ExceptionCatchingThreadFactory;
 import hudson.util.NamingThreadFactory;
 import hudson.util.VersionNumber;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -897,6 +900,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 instance.jenkinsTaskQueueDuration.update(millisecondsInQueue, TimeUnit.MILLISECONDS);
             }
             ItemTotals t = totals.getOrDefault(li.getId(), ItemTotals.EMPTY);
+            Label assignedLabel = li.getAssignedLabel();
             final WorkUnitContext wuc = li.outcome;
             if (wuc != null) {
                 synchronized (actions) {
@@ -916,11 +920,20 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         .thenAccept((executable) -> {
                             long startTimeMillis = System.currentTimeMillis();
                             long queuingDurationMillis = startTimeMillis - li.getInQueueSince();
+                            List<Set<LabelAtom>> consumedLabelAtoms = wuc.getWorkUnits()
+                                    .stream()
+                                    .map(w -> w == null ? null : w.getExecutor())
+                                    .map(e -> e == null ? null : e.getOwner())
+                                    .map(c -> c == null ? null : c.getNode())
+                                    .map(n -> n == null ? Collections.<LabelAtom>emptySet() : n.getAssignedLabels())
+                                    .collect(Collectors.toList());
                             QueueItemMetricsListener.notifyStarted(new QueueItemMetricsEvent(
                                     li,
+                                    assignedLabel,
                                     QueueItemMetricsEvent.State.STARTED,
                                     RunResolver.resolve(executable).orElse(null),
                                     executable,
+                                    consumedLabelAtoms,
                                     queuingDurationMillis,
                                     TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
                                     TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
@@ -948,9 +961,11 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                         }
                                         QueueItemMetricsListener.notifyFinished(new QueueItemMetricsEvent(
                                                         li,
+                                                        assignedLabel,
                                                         QueueItemMetricsEvent.State.FINISHED,
                                                         run.orElse(null),
                                                         executable,
+                                                        consumedLabelAtoms,
                                                         queuingDurationMillis,
                                                         TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
                                                         TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
@@ -970,7 +985,8 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             } else {
                 QueueItemMetricsEvent m = new QueueItemMetricsEvent(
                         li,
-                        QueueItemMetricsEvent.State.CANCELLED,
+                        assignedLabel, QueueItemMetricsEvent.State.CANCELLED,
+                        null,
                         null,
                         null,
                         System.currentTimeMillis() - li.getInQueueSince(),
@@ -980,7 +996,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         null,
                         null
                 );
-                executorService.submit(()-> QueueItemMetricsListener.notifyCancelled(m));
+                executorService.submit(() -> QueueItemMetricsListener.notifyCancelled(m));
             }
             totals.remove(li.getId());
             trim();
@@ -990,7 +1006,9 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             totals.computeIfAbsent(i.getId(), id -> {
                 QueueItemMetricsEvent m = new QueueItemMetricsEvent(
                         i,
+                        i.getAssignedLabel(),
                         QueueItemMetricsEvent.State.QUEUED,
+                        null,
                         null,
                         null,
                         null,

@@ -26,10 +26,15 @@ package jenkins.metrics.api;
 
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
+import hudson.model.Label;
+import hudson.model.Node;
 import hudson.model.Queue;
 import hudson.model.Run;
+import hudson.model.labels.LabelAtom;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -40,12 +45,18 @@ public final class QueueItemMetricsEvent {
      * A timestamp used to allow comparison of metrics.
      */
     private final long eventTick = System.nanoTime();
+    @NonNull
     private final Queue.Item item;
+    @CheckForNull
+    private final Label assignedLabel;
+    @NonNull
     private final State state;
     @CheckForNull
     private final Run<?, ?> run;
     @CheckForNull
     private final Queue.Executable executable;
+    @CheckForNull
+    private final List<Set<LabelAtom>> consumedLabelAtoms;
     @CheckForNull
     private final Long queuingTotalMillis;
     @CheckForNull
@@ -60,9 +71,11 @@ public final class QueueItemMetricsEvent {
     private final Integer executorCount;
 
     public QueueItemMetricsEvent(@NonNull Queue.Item item,
+                                 @CheckForNull Label assignedLabel,
                                  @NonNull State state,
                                  @CheckForNull Run<?, ?> run,
                                  @CheckForNull Queue.Executable executable,
+                                 @CheckForNull List<Set<LabelAtom>> consumedLabelAtoms,
                                  @CheckForNull Long queuingTotalMillis,
                                  @CheckForNull Long queuingWaitingMillis,
                                  @CheckForNull Long queuingBlockedMillis,
@@ -70,9 +83,11 @@ public final class QueueItemMetricsEvent {
                                  @CheckForNull Long executingMillis,
                                  @CheckForNull Integer executorCount) {
         this.item = item;
+        this.assignedLabel = assignedLabel;
         this.state = state;
         this.run = run;
         this.executable = executable;
+        this.consumedLabelAtoms = consumedLabelAtoms;
         this.queuingTotalMillis = queuingTotalMillis;
         this.queuingWaitingMillis = queuingWaitingMillis;
         this.queuingBlockedMillis = queuingBlockedMillis;
@@ -158,6 +173,18 @@ public final class QueueItemMetricsEvent {
     }
 
     /**
+     * Returns the {@link Queue.Item#getAssignedLabel()} at the time of the event or {@code null} if the item was not
+     * assigned to a label.
+     *
+     * @return the {@link Queue.Item#getAssignedLabel()} at the time of the event or {@code null} if the item was not
+     * assigned to a label.
+     */
+    @CheckForNull
+    public Label getAssignedLabel() {
+        return assignedLabel;
+    }
+
+    /**
      * Returns the {@link Run} to which the {@link Queue.Item} belongs.
      *
      * @return the {@link Run} to which the {@link Queue.Item} belongs, if present.
@@ -174,6 +201,18 @@ public final class QueueItemMetricsEvent {
     @NonNull
     public Optional<Queue.Executable> getExecutable() {
         return Optional.ofNullable(executable);
+    }
+
+    /**
+     * Returns the {@link Node#getAssignedLabels()} of all the executor slots occupied by this task,
+     * if the task has been started.
+     *
+     * @return the {@link Node#getAssignedLabels()} of all the executor slots occupied by this task,
+     * if the task has been started, otherwise {@link Optional#empty()}.
+     */
+    @CheckForNull
+    public Optional<List<Set<LabelAtom>>> getConsumedLabelAtoms() {
+        return Optional.ofNullable(consumedLabelAtoms);
     }
 
     /**
