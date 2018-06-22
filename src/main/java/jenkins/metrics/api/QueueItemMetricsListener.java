@@ -37,28 +37,32 @@ public abstract class QueueItemMetricsListener implements ExtensionPoint {
      *
      * @param event the event.
      */
-    public abstract void onQueued(QueueItemMetricsEvent event);
+    public void onQueued(QueueItemMetricsEvent event) {
+    }
 
     /**
      * Called at most once for each {@link Queue.Item} some time after it is cancelled from the queue.
      *
      * @param event the event.
      */
-    public abstract void onCancelled(QueueItemMetricsEvent event);
+    public void onCancelled(QueueItemMetricsEvent event) {
+    }
 
     /**
      * Called at most once for each {@link Queue.Item} some time after it leaves the queue and starts executing.
      *
      * @param event the event.
      */
-    public abstract void onStarted(QueueItemMetricsEvent event);
+    public void onStarted(QueueItemMetricsEvent event) {
+    }
 
     /**
      * Called at most once for each {@link Queue.Item} some time after it finishes executing.
      *
      * @param event the event.
      */
-    public abstract void onFinished(QueueItemMetricsEvent event);
+    public void onFinished(QueueItemMetricsEvent event) {
+    }
 
     /**
      * All the registered {@link QueueItemMetricsListener} instances.
