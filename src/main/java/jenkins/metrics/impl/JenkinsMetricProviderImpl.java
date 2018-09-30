@@ -554,7 +554,29 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 getOrCreateTimer(computer);
             }
         }
+
         MetricRegistry metricRegistry = Metrics.metricRegistry();
+
+        for (Node node : jenkins.getNodes()) {
+
+            Computer computer = node.toComputer();
+            if (computer != null) {
+                String fullName = MetricRegistry.name("jenkins", "node", node.getNodeName(), "offline");
+
+                if (metricRegistry.getMetrics().containsKey(fullName)) {
+                  continue;
+                }
+                metricRegistry.register(fullName,
+                                         new Gauge<Integer>() {
+                                             @Override
+                                             public Integer getValue() {
+                                                 int offline = computer.isOffline() ? 1 : 0;
+                                                 return offline;
+                                             }
+                                         });
+            }
+        }
+
         metricRegistry.getTimers(JenkinsMetricProviderImpl::computerBuildDurationTimers)
                 .keySet()
                 .stream()
