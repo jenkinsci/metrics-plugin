@@ -29,11 +29,11 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>3.15</version>
+    <version>3.23</version>
   </parent>
 
   <artifactId>metrics</artifactId>
-  <version>4.0.2.3-SNAPSHOT</version>
+  <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
@@ -60,13 +60,15 @@
     <connection>scm:git:git://github.com/jenkinsci/metrics-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/metrics-plugin.git</developerConnection>
     <url>http://github.com/jenkinsci/metrics-plugin</url>
-    <tag>HEAD</tag>
+    <tag>${scmTag}</tag>
   </scm>
 
   <properties>
     <java.level>8</java.level>
     <jenkins.version>2.60.3</jenkins.version>
     <metrics.version>4.0.2</metrics.version>
+    <revision>4.0.2.3</revision>
+    <changelist>-SNAPSHOT</changelist>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
