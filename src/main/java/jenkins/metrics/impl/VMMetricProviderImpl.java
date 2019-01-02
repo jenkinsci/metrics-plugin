@@ -41,11 +41,12 @@ import hudson.Extension;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import jenkins.metrics.api.MetricProvider;
 import jenkins.metrics.util.AutoSamplingHistogram;
 
@@ -54,6 +55,8 @@ import jenkins.metrics.util.AutoSamplingHistogram;
  */
 @Extension
 public class VMMetricProviderImpl extends MetricProvider {
+    private static final Logger LOG = Logger.getLogger(VMMetricProviderImpl.class.getName());
+
     private final MetricSet set;
     private final Gauge<Double> systemCpuLoad;
     private final Gauge<Double> vmCpuLoad;
@@ -69,8 +72,9 @@ public class VMMetricProviderImpl extends MetricProvider {
         Gauge<Double> cpuUsage;
         try {
             cpuUsage = new CpuUsageGauge(1, TimeUnit.SECONDS);
-        } catch (UnsupportedOperationException e) {
+        } catch (IllegalStateException e) {
             // not supported
+            LOG.log(Level.WARNING, "Will not be able to provide CPU load", e);
             cpuUsage = null;
         }
         systemCpuLoad = systemLoad.getValue() >= 0 ? systemLoad : null;
@@ -212,49 +216,29 @@ public class VMMetricProviderImpl extends MetricProvider {
 
     private static class CpuUsageGauge extends CachedGauge<Double> {
         private final RuntimeMXBean runtimeMXBean;
-        private final Method getProcessCpuTime;
-        private final OperatingSystemMXBean operatingSystemMXBean;
+        private final com.sun.management.OperatingSystemMXBean operatingSystemMXBean;
         long prevUptime;
         long prevCpu;
 
         public CpuUsageGauge(int timeout, TimeUnit timeUnit) {
             super(timeout, timeUnit);
             runtimeMXBean = ManagementFactory.getRuntimeMXBean();
-            operatingSystemMXBean = ManagementFactory.getOperatingSystemMXBean();
-            try {
-                getProcessCpuTime = operatingSystemMXBean.getClass().getMethod("getProcessCpuTime");
-                getProcessCpuTime.setAccessible(true);
-                if (((Number) getProcessCpuTime.invoke(operatingSystemMXBean)).longValue() < 0) {
-                    throw new UnsupportedOperationException("CPU usage not supported");
-                }
-            } catch (ClassCastException e) {
-                throw new UnsupportedOperationException("CPU usage not supported", e);
-            } catch (InvocationTargetException e) {
-                throw new UnsupportedOperationException("CPU usage not supported", e);
-            } catch (IllegalAccessException e) {
-                throw new UnsupportedOperationException("CPU usage not supported", e);
-            } catch (NoSuchMethodException e) {
-                throw new UnsupportedOperationException("CPU usage not supported", e);
+            if (ManagementFactory.getOperatingSystemMXBean() instanceof com.sun.management.OperatingSystemMXBean) {
+                operatingSystemMXBean = (com.sun.management.OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+            } else {
+                throw new IllegalStateException("Not using com.sun.management.OperatingSystemMXBean");
             }
         }
 
         @Override
         protected synchronized Double loadValue() {
-            try {
-                long uptime = runtimeMXBean.getUptime();
-                long cpu = ((Number) getProcessCpuTime.invoke(operatingSystemMXBean)).longValue();
-                long elapsedTime = uptime - prevUptime;
-                double elapsedCpu = TimeUnit.NANOSECONDS.toMillis(cpu - prevCpu);
-                prevUptime = uptime;
-                prevCpu = cpu;
-                return Math.min(99.0, elapsedCpu / elapsedTime);
-            } catch (IllegalAccessException e) {
-                // should never happen as pre-flight test caught it
-                return -1.0;
-            } catch (InvocationTargetException e) {
-                // should never happen as pre-flight test caught it
-                return -1.0;
-            }
+            long uptime = runtimeMXBean.getUptime();
+            long cpu = operatingSystemMXBean.getProcessCpuTime();
+            long elapsedTime = uptime - prevUptime;
+            double elapsedCpu = TimeUnit.NANOSECONDS.toMillis(cpu - prevCpu);
+            prevUptime = uptime;
+            prevCpu = cpu;
+            return Math.min(99.0, elapsedCpu / elapsedTime);
         }
     }
 }
