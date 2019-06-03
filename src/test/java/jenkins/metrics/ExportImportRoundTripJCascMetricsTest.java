@@ -1,6 +1,7 @@
 package jenkins.metrics;
 
 import hudson.ExtensionList;
+import io.jenkins.plugins.casc.misc.ExportImportRoundTripAbstractTest;
 import jenkins.metrics.api.MetricsAccessKey;
 import org.jvnet.hudson.test.RestartableJenkinsRule;
 

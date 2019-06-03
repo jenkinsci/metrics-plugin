@@ -76,7 +76,7 @@
     <!-- Fail when generating jdk-tool - installations -->
     <!--
     <jcasc.version>1.17</jcasc.version>-->
-    <jcasc.version>1.18</jcasc.version>
+    <jcasc.version>1.20-SNAPSHOT</jcasc.version>
   </properties>
 
   <repositories>
