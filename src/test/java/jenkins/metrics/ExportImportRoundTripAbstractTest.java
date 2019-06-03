@@ -4,11 +4,13 @@ import com.gargoylesoftware.htmlunit.WebRequest;
 import com.gargoylesoftware.htmlunit.WebResponse;
 import com.gargoylesoftware.htmlunit.util.NameValuePair;
 import io.jenkins.plugins.casc.ConfigurationAsCode;
+import io.jenkins.plugins.casc.ConfigurationContext;
 import io.jenkins.plugins.casc.ConfiguratorException;
+import io.jenkins.plugins.casc.ConfiguratorRegistry;
 import io.jenkins.plugins.casc.impl.configurators.DataBoundConfigurator;
+import io.jenkins.plugins.casc.model.CNode;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
-import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
@@ -27,8 +29,12 @@ import java.util.Collections;
 import java.util.logging.Level;
 
 import static com.gargoylesoftware.htmlunit.HttpMethod.POST;
+import static io.jenkins.plugins.casc.misc.Util.getJenkinsRoot;
+import static io.jenkins.plugins.casc.misc.Util.toStringFromYamlFile;
+import static io.jenkins.plugins.casc.misc.Util.toYamlString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -50,7 +56,7 @@ public abstract class ExportImportRoundTripAbstractTest {
 
     static {
         // The restartable rule add spaces to Jenkins home and it makes the second and next steps to fail loading the
-        // jenkins.yml This property avoid that.
+        // jenkins.yml. This property avoid that.
         System.setProperty("jenkins.test.noSpaceInTmpDirs", "true");
     }
 
@@ -61,14 +67,15 @@ public abstract class ExportImportRoundTripAbstractTest {
     public abstract void configuredAsExpected(RestartableJenkinsRule j, String configContent);
 
     /**
-     * Returns the resource path (yaml file) to be loaded. i.e: If the resource is in the same package: my-config.yaml
+     * Return the resource path (yaml file) to be loaded. i.e: If the resource is in the same package of the implementor
+     * class, then: my-config.yaml
      * @return the resource name and path.
      */
     public abstract String configResource();
 
     /**
-     * Returns the string that should be in the logs of the JCasC logger to verify it's configured. This string should
-     * be unique to avoid interpreting it was configured successfully, but it wasn't.
+     * Return the string that should be in the logs of the JCasC logger to verify it's configured after a restart. This
+     * string should be unique to avoid interpreting that it was configured successfully, but it wasn't.
      * @return the unique string to be in the logs to certify the configuration was done successfully.
      */
     public abstract String stringInLogExpected();
@@ -84,7 +91,8 @@ public abstract class ExportImportRoundTripAbstractTest {
     }
 
     /*
-    This is executed before the second step is ended. We need to call it at the end of the second step.
+    Annotated with @After is executed before the second step is ended.
+    We need to call it at the end of the second step.
      */
     //@After
     public void restoreJenkinsConfig() throws IOException {
@@ -103,8 +111,19 @@ public abstract class ExportImportRoundTripAbstractTest {
         }
     }
 
-    /*
-    Check the export and import and configuration when restarted of the Jenkins instance.
+    /**
+     * 1.  Configure the instance with the {@link #configResource()} implemented.
+     * 2.  Check it was configured correctly.
+     * 3.  Export the full Jenkins configuration via Web UI (commented as it fails with maven defaultProperties).
+     * 4.  Export the schema via Web UI (commented out as there is no good validator so far).
+     * 5.  Verify the Jenkins configuration against the schema (commented out as there is no good validator so far).
+     * 6.  Check the Jenkins configuration is valid via Web UI (used the plugin config so far).
+     * 7.  Apply the Jenkins configuration via Web UI (maybe not needed, but we test it as well).
+     * 8.  Write the Jenkins configuration to $JENKINS_ROOT/jenkins.yaml.
+     * 9.  Restart Jenkins.
+     * 10. Check the {@link #stringInLogExpected()} is set during the restart.
+     *
+     * @throws IOException If an exception is thrown managing resources or files.
      */
     @Test
     public void exportImportRoundTrip() throws IOException {
@@ -117,10 +136,10 @@ public abstract class ExportImportRoundTripAbstractTest {
             configuredAsExpected(r, resourceContent);
 
             // Get the full configuration
-            String jenkinsConf = getJenkinsConfViaWebUI();
+            //String jenkinsConf = getJenkinsConfViaWebUI();
             //hack: the full Jenkins config fails due to defaultProperties of maven, we use the config of the plugin
             //TODO: remove when full Jenkins config works
-            jenkinsConf = getResourceContent(resourcePath);
+            String jenkinsConf = getResourceContent(resourcePath);
 
             // Get the schema
             //String schema = getSchemaViaWebUI();
@@ -130,19 +149,22 @@ public abstract class ExportImportRoundTripAbstractTest {
             //verifyJsonAgainstSchema(jenkinsConf, schema);
 
             // Check if the exported configuration is valid
-            //TODO: it fails because maven defaultProperties tag is not valid
+            //TODO: we use the plugin conf so far. The Jenkins conf fails because maven defaultProperties tag is not valid
             checkConfigViaWebUI(jenkinsConf);
 
-            // Apply config. Needed?
+            // Apply full configuration. Maybe not needed, we already have it configured and checked it is valid.
             applyConfigViaWebUI(jenkinsConf);
             configuredAsExpected(r, resourceContent);
 
-            // Configure Jenkins default JCasC file with this other config file
+            // Configure Jenkins default JCasC file with the config file. It's already established, we check if applied
+            // looking at the logs.
             putConfigInHome(jenkinsConf);
 
             // Before restarting we need to establish this property, it's not managed properly so far
             System.setProperty("casc.jenkins.config", new File(r.home, ConfigurationAsCode.DEFAULT_JENKINS_YAML_PATH).getAbsolutePath());
-            // Start recording the logs before restarting, to avoid capture the previous startup
+
+            // Start recording the logs just before restarting, to avoid capture the previous startup. We're look there
+            // if the "magic token" is there
             logging.record(DataBoundConfigurator.class.getName(), Level.INFO).capture(5);
         });
 
@@ -236,6 +258,5 @@ public abstract class ExportImportRoundTripAbstractTest {
 
     private void verifyLogAsExpected(String uniqueText) {
         Assert.assertTrue(logging.getMessages().stream().anyMatch(m -> m.contains(uniqueText)));
-        //logWasFound(uniqueText);
     }
 }

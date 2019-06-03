@@ -24,7 +24,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 /**
- * Tests of Jenkins Configuration as Code
+ * Tests of Jenkins Configuration as Code. Not needed because we have a more strong test {@link ExportImportRoundTripJCascMetricsTest}
  */
 public class JCasCTest {
     @Rule
@@ -47,6 +47,6 @@ public class JCasCTest {
         assertEquals(accessKey.isCanThreadDump(), true);
         assertEquals(accessKey.isCanHealthCheck(), false);
         assertEquals(accessKey.isCanMetrics(), true);
-        assertEquals(accessKey.getOrigins(), "*-weird-origin");
+        assertEquals(accessKey.getOrigins(), "*");
     }
 }

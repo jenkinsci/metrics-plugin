@@ -19,7 +19,7 @@ public class ExportImportRoundTripJCascMetricsTest extends ExportImportRoundTrip
     @Override
     public void configuredAsExpected(RestartableJenkinsRule j, String configContent) {
         List<MetricsAccessKey> accessKeys = ExtensionList.lookup(MetricsAccessKey.DescriptorImpl.class).get(0).getAccessKeys();
-        assertThat("We have an access keys of metrics configured in Configure System", accessKeys.size() == 1);
+        assertThat("We have an access key of metrics configured in Configure System", accessKeys.size() == 1);
 
         MetricsAccessKey accessKey = accessKeys.get(0);
 
@@ -29,7 +29,7 @@ public class ExportImportRoundTripJCascMetricsTest extends ExportImportRoundTrip
         assertTrue(accessKey.isCanThreadDump());
         assertFalse(accessKey.isCanHealthCheck());
         assertTrue(accessKey.isCanMetrics());
-        assertEquals("*-weird-origin", accessKey.getOrigins());
+        assertEquals("*", accessKey.getOrigins());
     }
 
     @Override
@@ -39,6 +39,6 @@ public class ExportImportRoundTripJCascMetricsTest extends ExportImportRoundTrip
 
     @Override
     public String stringInLogExpected() {
-        return "MetricsAccessKey.origins = *-weird-origin";
+        return "MetricsAccessKey.key = tDdG5Vsv-2-WDdHfI3QFPiU9-hcvKmWd2HL4CfVIFvUumQzz3qf6c0qt_HU4_lUh";
     }
 }

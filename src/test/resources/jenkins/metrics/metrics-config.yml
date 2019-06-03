@@ -7,4 +7,4 @@ unclassified:
         canThreadDump:  true
         canHealthCheck: false
         canMetrics:     true
-        origins:        "*-weird-origin"
+        origins:        "*"
