@@ -4,11 +4,8 @@ import com.gargoylesoftware.htmlunit.WebRequest;
 import com.gargoylesoftware.htmlunit.WebResponse;
 import com.gargoylesoftware.htmlunit.util.NameValuePair;
 import io.jenkins.plugins.casc.ConfigurationAsCode;
-import io.jenkins.plugins.casc.ConfigurationContext;
 import io.jenkins.plugins.casc.ConfiguratorException;
-import io.jenkins.plugins.casc.ConfiguratorRegistry;
 import io.jenkins.plugins.casc.impl.configurators.DataBoundConfigurator;
-import io.jenkins.plugins.casc.model.CNode;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
@@ -31,12 +28,8 @@ import java.util.Collections;
 import java.util.logging.Level;
 
 import static com.gargoylesoftware.htmlunit.HttpMethod.POST;
-import static io.jenkins.plugins.casc.misc.Util.getJenkinsRoot;
-import static io.jenkins.plugins.casc.misc.Util.toStringFromYamlFile;
-import static io.jenkins.plugins.casc.misc.Util.toYamlString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
@@ -55,12 +48,6 @@ public abstract class ExportImportRoundTripAbstractTest {
 
     @Rule
     public LoggerRule logging = new LoggerRule();
-
-    static {
-        // The restartable rule add spaces to Jenkins home and it makes the second and next steps to fail loading the
-        // jenkins.yml. This property avoid that.
-        System.setProperty("jenkins.test.noSpaceInTmpDirs", "true");
-    }
 
     /**
      * A method to assert if the configuration was correctly loaded. The Jenkins rule and the content of the config
@@ -89,7 +76,7 @@ public abstract class ExportImportRoundTripAbstractTest {
             jenkinsConfigContentOld = FileUtils.readFileToString(jenkinsConfig);
         }
 
-        cascJenkinsConfigPropOld = System.getProperty("casc.jenkins.config", null);
+        cascJenkinsConfigPropOld = System.getProperty(ConfigurationAsCode.CASC_JENKINS_CONFIG_PROPERTY, null);
     }
 
     /*
@@ -112,9 +99,9 @@ public abstract class ExportImportRoundTripAbstractTest {
         }
 
         if (cascJenkinsConfigPropOld != null) {
-            System.setProperty("casc.jenkins.config", cascJenkinsConfigPropOld);
+            System.setProperty(ConfigurationAsCode.CASC_JENKINS_CONFIG_PROPERTY, cascJenkinsConfigPropOld);
         } else {
-            System.clearProperty("casc.jenkins.config");
+            System.clearProperty(ConfigurationAsCode.CASC_JENKINS_CONFIG_PROPERTY);
         }
     }
 
@@ -145,7 +132,8 @@ public abstract class ExportImportRoundTripAbstractTest {
             // Get the full configuration
             //String jenkinsConf = getJenkinsConfViaWebUI();
             //hack: the full Jenkins config fails due to defaultProperties of maven, we use the config of the plugin
-            //TODO: remove when full Jenkins config works
+            //TODO: remove when https://issues.jenkins-ci.org/browse/JENKINS-57122 is solved
+            //@Issue("JENKINS-57122")
             String jenkinsConf = getResourceContent(resourcePath);
 
             // Get the schema
@@ -156,7 +144,6 @@ public abstract class ExportImportRoundTripAbstractTest {
             //verifyJsonAgainstSchema(jenkinsConf, schema);
 
             // Check if the exported configuration is valid
-            //TODO: we use the plugin conf so far. The Jenkins conf fails because maven defaultProperties tag is not valid
             checkConfigViaWebUI(jenkinsConf);
 
             // Apply full configuration. Maybe not needed, we already have it configured and checked it is valid.
@@ -168,7 +155,7 @@ public abstract class ExportImportRoundTripAbstractTest {
             putConfigInHome(jenkinsConf);
 
             // Before restarting we need to establish this property, it's not managed properly so far
-            System.setProperty("casc.jenkins.config", new File(r.home, ConfigurationAsCode.DEFAULT_JENKINS_YAML_PATH).toURI().toURL().toExternalForm());
+            System.setProperty(ConfigurationAsCode.CASC_JENKINS_CONFIG_PROPERTY, new File(r.home, ConfigurationAsCode.DEFAULT_JENKINS_YAML_PATH).toURI().toURL().toExternalForm());
 
             // Start recording the logs just before restarting, to avoid capture the previous startup. We're look there
             // if the "magic token" is there
@@ -208,21 +195,23 @@ public abstract class ExportImportRoundTripAbstractTest {
         File configFile = new File(r.home, ConfigurationAsCode.DEFAULT_JENKINS_YAML_PATH);
 
         writeToFile(config, configFile.getAbsolutePath());
-        assertTrue("jenkins.yml should be created", configFile.exists());
+        assertTrue(ConfigurationAsCode.DEFAULT_JENKINS_YAML_PATH + " should be created", configFile.exists());
     }
 
-    private String getJenkinsConfViaWebUI() throws Exception {
-        return download("configuration-as-code/export");
-    }
-
-    private String download(String url) throws IOException {
-        JenkinsRule.WebClient client = r.j.createWebClient();
-        WebRequest request = new WebRequest(client.createCrumbedUrl(url), POST);
-        WebResponse response = client.loadWebResponse(request);
-
-        assertEquals(200, response.getStatusCode());
-        return response.getContentAsString();
-    }
+    //TODO: to be used when https://issues.jenkins-ci.org/browse/JENKINS-57122 is solved
+    //@Issue("JENKINS-57122")
+//    private String getJenkinsConfViaWebUI() throws Exception {
+//        return download("configuration-as-code/export");
+//    }
+//
+//    private String download(String url) throws IOException {
+//        JenkinsRule.WebClient client = r.j.createWebClient();
+//        WebRequest request = new WebRequest(client.createCrumbedUrl(url), POST);
+//        WebResponse response = client.loadWebResponse(request);
+//
+//        assertEquals(200, response.getStatusCode());
+//        return response.getContentAsString();
+//    }
 
     private void checkConfigViaWebUI(String jenkinsConfig) throws Exception {
         // The UI requires the path to the config file
