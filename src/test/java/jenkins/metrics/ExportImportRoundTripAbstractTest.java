@@ -253,7 +253,7 @@ public abstract class ExportImportRoundTripAbstractTest {
                         </ul>
         path is the file used to store the configuration.
          */
-        assertThat(res, containsString(f.getAbsolutePath()));
+        assertThat(res, containsString(f.toURI().toURL().toExternalForm()));
     }
 
     private void verifyLogAsExpected(String uniqueText) {
