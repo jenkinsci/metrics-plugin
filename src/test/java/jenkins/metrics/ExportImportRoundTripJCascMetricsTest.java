@@ -18,7 +18,7 @@ import static org.junit.Assert.assertTrue;
 public class ExportImportRoundTripJCascMetricsTest extends ExportImportRoundTripAbstractTest {
 
     @Override
-    public void configuredAsExpected(RestartableJenkinsRule j, String configContent) {
+    public void assertConfiguredAsExpected(RestartableJenkinsRule j, String configContent) {
         List<MetricsAccessKey> accessKeys = ExtensionList.lookup(MetricsAccessKey.DescriptorImpl.class).get(0).getAccessKeys();
         assertThat("We have an access key of metrics configured in Configure System", accessKeys.size() == 1);
 
