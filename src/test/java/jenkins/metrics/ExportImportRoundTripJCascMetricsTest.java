@@ -34,11 +34,6 @@ public class ExportImportRoundTripJCascMetricsTest extends ExportImportRoundTrip
     }
 
     @Override
-    public String configResource() {
-        return "metrics-config.yml";
-    }
-
-    @Override
     public String stringInLogExpected() {
         return "MetricsAccessKey.key = tDdG5Vsv-2-WDdHfI3QFPiU9-hcvKmWd2HL4CfVIFvUumQzz3qf6c0qt_HU4_lUh";
     }
