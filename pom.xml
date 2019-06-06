@@ -74,7 +74,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.findbugs.failure.strict>true</maven.findbugs.failure.strict>
     <!-- TODO: change when https://github.com/jenkinsci/configuration-as-code-plugin/pull/908 is released -->
-    <jcasc.version>1.20-20190604.105601-2</jcasc.version>
+    <jcasc.version>1.20-rc828.378b8117846a</jcasc.version>
   </properties>
 
   <repositories>
