@@ -1,7 +1,7 @@
 package jenkins.metrics;
 
 import hudson.ExtensionList;
-import io.jenkins.plugins.casc.misc.ExportImportRoundTripAbstractTest;
+import io.jenkins.plugins.casc.misc.RoundTripAbstractTest;
 import jenkins.metrics.api.MetricsAccessKey;
 import org.jvnet.hudson.test.RestartableJenkinsRule;
 
@@ -15,7 +15,7 @@ import static org.junit.Assert.assertTrue;
 /**
  * Configuration, validation, export and configuration during restart of the configuration of the metrics plugin.
  */
-public class ExportImportRoundTripJCascMetricsTest extends ExportImportRoundTripAbstractTest {
+public class RoundTripJCascMetricsTest extends RoundTripAbstractTest {
 
     @Override
     public void assertConfiguredAsExpected(RestartableJenkinsRule j, String configContent) {
