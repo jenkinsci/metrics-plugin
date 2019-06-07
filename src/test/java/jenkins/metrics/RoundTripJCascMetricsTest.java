@@ -20,7 +20,7 @@ public class RoundTripJCascMetricsTest extends RoundTripAbstractTest {
     @Override
     public void assertConfiguredAsExpected(RestartableJenkinsRule j, String configContent) {
         List<MetricsAccessKey> accessKeys = ExtensionList.lookup(MetricsAccessKey.DescriptorImpl.class).get(0).getAccessKeys();
-        assertThat("We have an access key of metrics configured in Configure System", accessKeys.size() == 1);
+        assertThat("We have an access key of metrics configured in Configure System", accessKeys.size() == 4);
 
         MetricsAccessKey accessKey = accessKeys.get(0);
 
