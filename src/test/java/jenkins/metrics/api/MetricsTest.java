@@ -2,6 +2,7 @@ package jenkins.metrics.api;
 
 import hudson.util.VersionNumber;
 import jenkins.model.Jenkins;
+import org.apache.commons.lang.ArrayUtils;
 import org.junit.AfterClass;
 import org.junit.Assume;
 import org.junit.BeforeClass;
@@ -9,10 +10,10 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.jvnet.hudson.test.Issue;
-import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.RestartableJenkinsRule;
 
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
 
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
@@ -36,22 +37,20 @@ public class MetricsTest {
     @Test
     public void logsDirectory() {
 
-        // Lambda-ify when Java 8+
-        story.then(new RestartableJenkinsRule.Step() {
-            @Override
-            public void run(JenkinsRule j) throws Throwable {
-                Assume.assumeTrue(Jenkins.getVersion().isNewerThan(new VersionNumber("2.113"))); // JENKINS-50291 introduced in 2.114
+        story.then(j -> {
+            Assume.assumeTrue(Jenkins.getVersion().isNewerThan(new VersionNumber("2.113"))); // JENKINS-50291 introduced in 2.114
 
-                assertTrue(Metrics.HealthChecker.getLogFile(j.jenkins).getAbsolutePath().startsWith(j.getInstance().getRootDir().getAbsolutePath()));
-                System.setProperty("hudson.triggers.SafeTimerTask.logsTargetDir", folder.newFolder().getAbsolutePath());
-            }
+            assertTrue(Metrics.HealthChecker.getLogFile(j.jenkins).getAbsolutePath().startsWith(j.getInstance().getRootDir().getAbsolutePath()));
+            System.setProperty("hudson.triggers.SafeTimerTask.logsTargetDir", folder.newFolder().getAbsolutePath());
         });
 
-        story.then(new RestartableJenkinsRule.Step() {
-            @Override
-            public void run(JenkinsRule j) throws Throwable {
-                assertFalse(Metrics.HealthChecker.getLogFile(j.jenkins).getAbsolutePath().startsWith(j.getInstance().getRootDir().getAbsolutePath()));
-            }
+        story.then(j -> assertFalse(Metrics.HealthChecker.getLogFile(j.jenkins).getAbsolutePath().startsWith(j.getInstance().getRootDir().getAbsolutePath())));
+    }
+
+    @Test
+    public void jmxDomain() {
+        story.then(r -> {
+            assertTrue(ArrayUtils.contains(ManagementFactory.getPlatformMBeanServer().getDomains(), "io.jenkins"));
         });
     }
 }

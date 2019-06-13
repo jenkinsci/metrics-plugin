@@ -113,6 +113,12 @@ public class Metrics extends Plugin {
      */
     public static final Permission HEALTH_CHECK = new Permission(PERMISSIONS,
             "HealthCheck", Messages._Metrics_HealthCheckPermission_Description(), Jenkins.ADMINISTER, PermissionScope.JENKINS);
+
+    /**
+     * JMX domain
+     */
+    public static final String JMX_DOMAIN = "io.jenkins";
+
     /**
      * Our logger.
      */
@@ -267,6 +273,7 @@ public class Metrics extends Plugin {
         PluginServletFilter.addFilter(filter);
         jmxReporter = JmxReporter
                 .forRegistry(metricRegistry)
+                .inDomain(JMX_DOMAIN)
                 .build();
         jmxReporter.start();
     }
