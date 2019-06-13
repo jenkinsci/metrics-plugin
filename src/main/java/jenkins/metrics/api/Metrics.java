@@ -265,7 +265,9 @@ public class Metrics extends Plugin {
     @Override
     public void start() throws Exception {
         PluginServletFilter.addFilter(filter);
-        jmxReporter = JmxReporter.forRegistry(metricRegistry).build();
+        jmxReporter = JmxReporter
+                .forRegistry(metricRegistry)
+                .build();
         jmxReporter.start();
     }
 
