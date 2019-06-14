@@ -71,6 +71,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import jenkins.metrics.impl.MetricsFilter;
+import jenkins.metrics.impl.ObjectNameFactoryImpl;
 import jenkins.metrics.util.HealthChecksThreadPool;
 import jenkins.model.Jenkins;
 import net.jcip.annotations.ThreadSafe;
@@ -274,6 +275,7 @@ public class Metrics extends Plugin {
         jmxReporter = JmxReporter
                 .forRegistry(metricRegistry)
                 .inDomain(JMX_DOMAIN)
+                .createsObjectNamesWith(new ObjectNameFactoryImpl())
                 .build();
         jmxReporter.start();
     }
