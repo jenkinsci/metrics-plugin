@@ -12,9 +12,14 @@ import org.junit.rules.TemporaryFolder;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.RestartableJenkinsRule;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -51,6 +56,18 @@ public class MetricsTest {
     public void jmxDomain() {
         story.then(r -> {
             assertTrue(ArrayUtils.contains(ManagementFactory.getPlatformMBeanServer().getDomains(), "io.jenkins"));
+        });
+    }
+
+    @Test
+    public void jmxMetricsExcluded() {
+        story.then(r -> {
+            MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=gc.*"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=vm.*"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*history"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*5m"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*1h"), null), is(empty()));
         });
     }
 }

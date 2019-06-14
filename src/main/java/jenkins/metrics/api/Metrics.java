@@ -70,6 +70,8 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
+
 import jenkins.metrics.impl.MetricsFilter;
 import jenkins.metrics.util.HealthChecksThreadPool;
 import jenkins.model.Jenkins;
@@ -118,6 +120,11 @@ public class Metrics extends Plugin {
      * JMX domain
      */
     public static final String JMX_DOMAIN = "io.jenkins";
+
+    /**
+     * Metrics excluded from JMX export
+     */
+    private static final Pattern JMX_EXCLUSIONS = Pattern.compile("^(vm|system)\\..*|.*\\.(5m|15m|1h|history)$");
 
     /**
      * Our logger.
@@ -274,6 +281,7 @@ public class Metrics extends Plugin {
         jmxReporter = JmxReporter
                 .forRegistry(metricRegistry)
                 .inDomain(JMX_DOMAIN)
+                .filter((name, metric) -> !JMX_EXCLUSIONS.matcher(name).matches())
                 .build();
         jmxReporter.start();
     }
