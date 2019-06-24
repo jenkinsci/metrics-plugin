@@ -20,6 +20,7 @@ import java.lang.management.ManagementFactory;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.core.IsNot.not;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -68,6 +69,7 @@ public class MetricsTest {
             assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*history"), null), is(empty()));
             assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*5m"), null), is(empty()));
             assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*1h"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=jenkins.*"), null), is(not(empty())));
         });
     }
 }
