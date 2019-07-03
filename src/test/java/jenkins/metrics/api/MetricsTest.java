@@ -64,12 +64,13 @@ public class MetricsTest {
     public void jmxMetricsExcluded() {
         story.then(r -> {
             MBeanServer mBeanServer = ManagementFactory.getPlatformMBeanServer();
-            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=gc.*"), null), is(empty()));
-            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=vm.*"), null), is(empty()));
-            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*history"), null), is(empty()));
-            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*5m"), null), is(empty()));
-            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=*1h"), null), is(empty()));
-            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:name=jenkins.*"), null), is(not(empty())));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:type=Gc,*"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:type=Vm,*"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:*,name=History"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:*,name=5m"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:*,name=1h"), null), is(empty()));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:type=Project,*"), null), is(not(empty())));
+            assertThat(mBeanServer.queryNames(new ObjectName("io.jenkins:type=Executor,*"), null), is(not(empty())));
         });
     }
 }

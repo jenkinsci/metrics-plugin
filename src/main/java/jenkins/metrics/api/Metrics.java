@@ -73,6 +73,7 @@ import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 import jenkins.metrics.impl.MetricsFilter;
+import jenkins.metrics.impl.ObjectNameFactoryImpl;
 import jenkins.metrics.util.HealthChecksThreadPool;
 import jenkins.model.Jenkins;
 import net.jcip.annotations.ThreadSafe;
@@ -281,6 +282,7 @@ public class Metrics extends Plugin {
         jmxReporter = JmxReporter
                 .forRegistry(metricRegistry)
                 .inDomain(JMX_DOMAIN)
+                .createsObjectNamesWith(new ObjectNameFactoryImpl())
                 .filter((name, metric) -> !JMX_EXCLUSIONS.matcher(name).matches())
                 .build();
         jmxReporter.start();
