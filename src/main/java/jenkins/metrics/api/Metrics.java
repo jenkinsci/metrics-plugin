@@ -70,7 +70,10 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
+
 import jenkins.metrics.impl.MetricsFilter;
+import jenkins.metrics.impl.ObjectNameFactoryImpl;
 import jenkins.metrics.util.HealthChecksThreadPool;
 import jenkins.model.Jenkins;
 import net.jcip.annotations.ThreadSafe;
@@ -113,6 +116,17 @@ public class Metrics extends Plugin {
      */
     public static final Permission HEALTH_CHECK = new Permission(PERMISSIONS,
             "HealthCheck", Messages._Metrics_HealthCheckPermission_Description(), Jenkins.ADMINISTER, PermissionScope.JENKINS);
+
+    /**
+     * JMX domain
+     */
+    public static final String JMX_DOMAIN = "io.jenkins";
+
+    /**
+     * Metrics excluded from JMX export
+     */
+    private static final Pattern JMX_EXCLUSIONS = Pattern.compile("^(vm|system)\\..*|.*\\.(5m|15m|1h|history)$");
+
     /**
      * Our logger.
      */
@@ -265,7 +279,12 @@ public class Metrics extends Plugin {
     @Override
     public void start() throws Exception {
         PluginServletFilter.addFilter(filter);
-        jmxReporter = JmxReporter.forRegistry(metricRegistry).build();
+        jmxReporter = JmxReporter
+                .forRegistry(metricRegistry)
+                .inDomain(JMX_DOMAIN)
+                .createsObjectNamesWith(new ObjectNameFactoryImpl())
+                .filter((name, metric) -> !JMX_EXCLUSIONS.matcher(name).matches())
+                .build();
         jmxReporter.start();
     }
 

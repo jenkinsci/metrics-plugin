@@ -29,7 +29,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>3.23</version>
+    <version>3.43</version>
   </parent>
 
   <artifactId>metrics</artifactId>
@@ -67,12 +67,13 @@
     <java.level>8</java.level>
     <jenkins.version>2.60.3</jenkins.version>
     <metrics.version>4.0.2</metrics.version>
-    <revision>4.0.2.4</revision>
+    <revision>4.0.2.6</revision>
     <changelist>-SNAPSHOT</changelist>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.findbugs.failure.strict>true</maven.findbugs.failure.strict>
+    <jcasc.version>1.20</jcasc.version>
   </properties>
 
   <repositories>
@@ -155,7 +156,14 @@
     <dependency>
       <groupId>io.jenkins</groupId>
       <artifactId>configuration-as-code</artifactId>
-      <version>1.8</version>
+      <version>${jcasc.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.jenkins</groupId>
+      <artifactId>configuration-as-code</artifactId>
+      <version>${jcasc.version}</version>
+      <classifier>tests</classifier>
       <scope>test</scope>
     </dependency>
   </dependencies>
