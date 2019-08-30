@@ -33,6 +33,7 @@ import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
+import jenkins.metrics.api.MetricsAccessKey;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.ExtensionList;
@@ -563,6 +564,14 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     }
 
     private synchronized Timer getOrCreateTimer(Computer computer) {
+        final Jenkins jenkins = Jenkins.getInstance();
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        if (!descriptor.getDoPerComputerMetrics()) {
+            return new Timer();
+        }
         return computerBuildDurations.computeIfAbsent(computer,
                 c -> Metrics.metricRegistry().timer(name("jenkins", "node", c.getName(), "builds")));
     }
