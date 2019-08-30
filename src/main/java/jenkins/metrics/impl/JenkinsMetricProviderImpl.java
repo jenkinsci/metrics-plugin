@@ -1,7 +1,7 @@
 /*
  * The MIT License
  *
- * Copyright (c) 2013-2014, CloudBees, Inc.
+ * Copyright (c) 2013-2018, CloudBees, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -25,7 +25,6 @@
 package jenkins.metrics.impl;
 
 import com.codahale.metrics.CachedGauge;
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
@@ -34,56 +33,84 @@ import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Timer;
-import hudson.model.AbstractProject;
-import hudson.model.Item;
-import hudson.model.ItemGroup;
-import hudson.model.Project;
-import hudson.model.TopLevelItem;
 import jenkins.metrics.api.MetricsAccessKey;
-import jenkins.metrics.util.AutoSamplingHistogram;
-import jenkins.metrics.api.MetricProvider;
-import jenkins.metrics.api.Metrics;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+import hudson.ExtensionList;
 import hudson.PluginWrapper;
+import hudson.Util;
+import hudson.init.InitMilestone;
+import hudson.init.Initializer;
+import hudson.model.AbstractProject;
 import hudson.model.Action;
 import hudson.model.Computer;
 import hudson.model.Executor;
+import hudson.model.Item;
+import hudson.model.ItemGroup;
 import hudson.model.Job;
+import hudson.model.Label;
 import hudson.model.Node;
 import hudson.model.PeriodicWork;
 import hudson.model.Queue;
-import hudson.model.Result;
 import hudson.model.Run;
 import hudson.model.TaskListener;
+import hudson.model.TopLevelItem;
+import hudson.model.labels.LabelAtom;
 import hudson.model.listeners.RunListener;
 import hudson.model.queue.QueueListener;
 import hudson.model.queue.WorkUnit;
 import hudson.model.queue.WorkUnitContext;
 import hudson.security.ACL;
-import jenkins.model.Jenkins;
-import org.acegisecurity.context.SecurityContext;
-import org.acegisecurity.context.SecurityContextHolder;
-
+import hudson.security.ACLContext;
+import hudson.util.DaemonThreadFactory;
+import hudson.util.ExceptionCatchingThreadFactory;
+import hudson.util.NamingThreadFactory;
+import hudson.util.VersionNumber;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
 import java.util.WeakHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import jenkins.metrics.api.MetricProvider;
+import jenkins.metrics.api.Metrics;
+import jenkins.metrics.api.QueueItemMetricsEvent;
+import jenkins.metrics.api.QueueItemMetricsListener;
+import jenkins.metrics.util.AutoSamplingHistogram;
+import jenkins.model.Jenkins;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.DoNotUse;
 
 import static com.codahale.metrics.MetricRegistry.name;
-import java.util.Locale;
 
 /**
- * @author Stephen Connolly
+ * Provides Jenkins specific metrics.
  */
 @Extension
 public class JenkinsMetricProviderImpl extends MetricProvider {
 
+    /**
+     * Our logger.
+     */
+    private static final Logger LOGGER = Logger.getLogger(JenkinsMetricProviderImpl.class.getName());
     /**
      * Our set of metrics.
      */
@@ -107,7 +134,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     /**
      * The build durations per computer.
      */
-    private Map<Computer, Timer> computerBuildDurations = new HashMap<Computer, Timer>();
+    private Map<Computer, Timer> computerBuildDurations = new WeakHashMap<>();
     /**
      * The rate at which jobs are being scheduled.
      */
@@ -115,40 +142,66 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     /**
      * The amount of time jobs stay in the queue.
      */
-    private Timer jenkinsJobQueueTime;
+    private Timer jenkinsJobQueueDuration;
     /**
      * The amount of time a job is waiting for its quiet period to expire.
      */
-    private Timer jenkinsJobWaitingTime;
+    private Timer jenkinsJobWaitingDuration;
     /**
      * The amount of time jobs are blocked waiting for a resource that has a restricted sharing policy.
      */
-    private Timer jenkinsJobBlockedTime;
+    private Timer jenkinsJobBlockedDuration;
     /**
      * The amount of time jobs are buildable and waiting for an executor.
      */
-    private Timer jenkinsJobBuildableTime;
+    private Timer jenkinsJobBuildableDuration;
     /**
-     * The amount of time jobs are building.
+     * The amount of time jobs are building (start to finish).
      */
-    private Timer jenkinsJobBuildingTime;
+    private Timer jenkinsJobBuildingDuration;
+    /**
+     * The rate at which tasks are being scheduled.
+     */
+    private Meter jenkinsTaskScheduleRate;
+    /**
+     * The amount of time tasks stay in the queue.
+     */
+    private Timer jenkinsTaskQueueDuration;
+    /**
+     * The amount of time a task is waiting for its quiet period to expire.
+     */
+    private Timer jenkinsTaskWaitingDuration;
+    /**
+     * The amount of time tasks are blocked waiting for a resource that has a restricted sharing policy.
+     */
+    private Timer jenkinsTaskBlockedDuration;
+    /**
+     * The amount of time tasks are buildable and waiting for an executor.
+     */
+    private Timer jenkinsTaskBuildableDuration;
+    /**
+     * The amount of time tasks are executing.
+     */
+    private Timer jenkinsTaskExecutionDuration;
+    /**
+     * The amount of time jobs are execute (cumulative).
+     */
+    private Timer jenkinsJobExecutionTime;
     /**
      * Run Results.
      */
-    private HashMap<String, Meter> jenkinsRunResults = new HashMap<String, Meter>();
+    private HashMap<String, Meter> jenkinsRunResults = new HashMap<>();
     /**
      * The amount of time jobs take from initial scheduling to completion.
      */
-    private Timer jenkinsJobTotalTime;
+    private Timer jenkinsJobTotalDuration;
 
     public JenkinsMetricProviderImpl() {
         Gauge<QueueStats> jenkinsQueue = new CachedGauge<QueueStats>(1, TimeUnit.SECONDS) {
             @Override
             protected QueueStats loadValue() {
-                SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
-                try {
-                    Jenkins jenkins = Jenkins.getInstance();
-                    Queue queue = jenkins == null ? null : jenkins.getQueue();
+                try (ACLContext ctx = ACL.as(ACL.SYSTEM)) {
+                    Queue queue = Jenkins.getInstance().getQueue();
                     int length = 0;
                     int blocked = 0;
                     int buildable = 0;
@@ -156,21 +209,29 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     int stuck = 0;
                     if (queue != null) {
                         for (Queue.Item i : queue.getItems()) {
-                            length++;
-                            if (i.isBlocked()) {
-                                blocked++;
-                            }
-                            if (i.isBuildable()) {
-                                buildable++;
-                            }
-                            if (i.isStuck()) {
-                                stuck++;
+                            if (i != null) {
+                                length++;
+                                try {
+                                    if (i.isBlocked()) {
+                                        blocked++;
+                                    }
+                                    if (i.isBuildable()) {
+                                        buildable++;
+                                    }
+                                    if (i.isStuck()) {
+                                        stuck++;
+                                    }
+                                } catch (Exception e) {
+                                    LOGGER.log(Level.FINE, "Uncaught exception recording queue statistics", e);
+                                } catch (OutOfMemoryError e) {
+                                    throw e;
+                                } catch (Throwable e) {
+                                    LOGGER.log(Level.FINE, "Uncaught throwable recording queue statistics", e);
+                                }
                             }
                         }
                     }
                     return new QueueStats(length, blocked, buildable, pending, stuck);
-                } finally {
-                    SecurityContextHolder.setContext(oldContext);
                 }
             }
         };
@@ -179,35 +240,16 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                 CachedGauge<NodeStats>(1, TimeUnit.SECONDS) {
                     @Override
                     protected NodeStats loadValue() {
-                        SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
-                        try {
+                        try (ACLContext ctx = ACL.as(ACL.SYSTEM)) {
                             int nodeCount = 0;
                             int nodeOnline = 0;
                             int executorCount = 0;
                             int executorBuilding = 0;
                             Jenkins jenkins = Jenkins.getInstance();
-                            if (jenkins != null) {
-                                if (jenkins.getNumExecutors() > 0) {
-                                    nodeCount++;
-                                    Computer computer = jenkins.toComputer();
-                                    if (computer != null) {
-                                        if (!computer.isOffline()) {
-                                            nodeOnline++;
-                                            for (Executor e : computer.getExecutors()) {
-                                                executorCount++;
-                                                if (!e.isIdle()) {
-                                                    executorBuilding++;
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                for (Node node : jenkins.getNodes()) {
-                                    nodeCount++;
-                                    Computer computer = node.toComputer();
-                                    if (computer == null) {
-                                        continue;
-                                    }
+                            if (jenkins.getNumExecutors() > 0) {
+                                nodeCount++;
+                                Computer computer = jenkins.toComputer();
+                                if (computer != null) {
                                     if (!computer.isOffline()) {
                                         nodeOnline++;
                                         for (Executor e : computer.getExecutors()) {
@@ -219,17 +261,30 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                     }
                                 }
                             }
+                            for (Node node : jenkins.getNodes()) {
+                                nodeCount++;
+                                Computer computer = node.toComputer();
+                                if (computer == null) {
+                                    continue;
+                                }
+                                if (!computer.isOffline()) {
+                                    nodeOnline++;
+                                    for (Executor e : computer.getExecutors()) {
+                                        executorCount++;
+                                        if (!e.isIdle()) {
+                                            executorBuilding++;
+                                        }
+                                    }
+                                }
+                            }
                             return new NodeStats(nodeCount, nodeOnline, executorCount, executorBuilding);
-                        } finally {
-                            SecurityContextHolder.setContext(oldContext);
                         }
                     }
                 };
         Gauge<JobStats> jobStats = new CachedGauge<JobStats>(5, TimeUnit.MINUTES) {
             @Override
             protected JobStats loadValue() {
-                SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
-                try {
+                try (ACLContext ctx = ACL.as(ACL.SYSTEM)) {
                     int count = 0;
                     int disabledProjects = 0;
                     int projectCount = 0;
@@ -245,12 +300,14 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             p = p instanceof Item ? ((Item) p).getParent() : null;
                         }
                         for (Item i : parent.getItems()) {
-                            if (! (i instanceof TopLevelItem)) continue;
+                            if (!(i instanceof TopLevelItem)) {
+                                continue;
+                            }
                             if (i instanceof Job) {
                                 count++;
                                 depthTotal += depth;
                                 if (i instanceof AbstractProject) {
-                                    projectCount ++;
+                                    projectCount++;
                                     if (((AbstractProject) i).isDisabled()) {
                                         disabledProjects++;
                                     }
@@ -262,9 +319,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         }
                     }
                     return new JobStats(count, projectCount, disabledProjects,
-                            count == 0 ? 0.0 : depthTotal / ((double)count));
-                } finally {
-                    SecurityContextHolder.setContext(oldContext);
+                            count == 0 ? 0.0 : depthTotal / ((double) count));
                 }
             }
         };
@@ -346,57 +401,62 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             }
                         }).toMetricSet()),
                 metric(name("jenkins", "job", "scheduled"), (jenkinsJobScheduleRate = new Meter())),
+                metric(name("jenkins", "task", "scheduled"), (jenkinsTaskScheduleRate = new Meter())),
                 metric(name("jenkins", "job", "count"),
-                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats, Integer>(jobStats) {
                             @Override
                             protected Integer transform(JobStats value) {
                                 return value.getJobCount();
                             }
                         }).toMetricSet()),
                 metric(name("jenkins", "job", "averageDepth"),
-                        new DerivativeGauge<JobStats,Double>(jobStats) {
+                        new DerivativeGauge<JobStats, Double>(jobStats) {
                             @Override
                             protected Double transform(JobStats value) {
                                 return value.getDepthAverage();
                             }
                         }),
                 metric(name("jenkins", "project", "count"),
-                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats, Integer>(jobStats) {
                             @Override
                             protected Integer transform(JobStats value) {
                                 return value.getProjectCount();
                             }
                         }).toMetricSet()),
-                metric(name("jenkins", "project", "enabled","count"),
-                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
+                metric(name("jenkins", "project", "enabled", "count"),
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats, Integer>(jobStats) {
                             @Override
                             protected Integer transform(JobStats value) {
                                 return value.getEnabledProjectCount();
                             }
                         }).toMetricSet()),
-                metric(name("jenkins", "project", "disabled","count"),
-                        new AutoSamplingHistogram(new DerivativeGauge<JobStats,Integer>(jobStats) {
+                metric(name("jenkins", "project", "disabled", "count"),
+                        new AutoSamplingHistogram(new DerivativeGauge<JobStats, Integer>(jobStats) {
                             @Override
                             protected Integer transform(JobStats value) {
                                 return value.getDisabledProjectCount();
                             }
                         }).toMetricSet()),
-                metric(name("jenkins", "job", "queuing", "duration"), (jenkinsJobQueueTime = new Timer())),
-                metric(name("jenkins", "job", "waiting", "duration"), (jenkinsJobWaitingTime = new Timer())),
-                metric(name("jenkins", "job", "blocked", "duration"), (jenkinsJobBlockedTime = new Timer())),
-                metric(name("jenkins", "job", "buildable", "duration"), (jenkinsJobBuildableTime = new Timer())),
-                metric(name("jenkins", "job", "building", "duration"), (jenkinsJobBuildingTime = new Timer())),
-                metric(name("jenkins", "job", "total", "duration"), (jenkinsJobTotalTime = new Timer())),
+                metric(name("jenkins", "job", "queuing", "duration"), (jenkinsJobQueueDuration = new Timer())),
+                metric(name("jenkins", "job", "waiting", "duration"), (jenkinsJobWaitingDuration = new Timer())),
+                metric(name("jenkins", "job", "blocked", "duration"), (jenkinsJobBlockedDuration = new Timer())),
+                metric(name("jenkins", "job", "buildable", "duration"), (jenkinsJobBuildableDuration = new Timer())),
+                metric(name("jenkins", "job", "building", "duration"), (jenkinsJobBuildingDuration = new Timer())),
+                metric(name("jenkins", "job", "execution", "time"), (jenkinsJobExecutionTime = new Timer())),
+                metric(name("jenkins", "task", "queuing", "duration"), (jenkinsTaskQueueDuration = new Timer())),
+                metric(name("jenkins", "task", "waiting", "duration"), (jenkinsTaskWaitingDuration = new Timer())),
+                metric(name("jenkins", "task", "blocked", "duration"), (jenkinsTaskBlockedDuration = new Timer())),
+                metric(name("jenkins", "task", "buildable", "duration"), (jenkinsTaskBuildableDuration = new Timer())),
+                metric(name("jenkins", "task", "execution", "duration"), (jenkinsTaskExecutionDuration = new Timer())),
+                metric(name("jenkins", "job", "total", "duration"), (jenkinsJobTotalDuration = new Timer())),
                 metric(name("jenkins", "plugins", "active"), new CachedGauge<Integer>(5, TimeUnit.MINUTES) {
                     @Override
                     protected Integer loadValue() {
                         int count = 0;
                         Jenkins jenkins = Jenkins.getInstance();
-                        if (jenkins != null) {
-                            for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
-                                if (w.isActive()) {
-                                    count++;
-                                }
+                        for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
+                            if (w.isActive()) {
+                                count++;
                             }
                         }
                         return count;
@@ -407,11 +467,9 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     protected Integer loadValue() {
                         int count = 0;
                         Jenkins jenkins = Jenkins.getInstance();
-                        if (jenkins != null) {
-                            for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
-                                if (!w.isActive()) {
-                                    count++;
-                                }
+                        for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
+                            if (!w.isActive()) {
+                                count++;
                             }
                         }
                         return count;
@@ -421,7 +479,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     @Override
                     protected Integer loadValue() {
                         Jenkins jenkins = Jenkins.getInstance();
-                        return jenkins == null ? 0 : jenkins.getPluginManager().getFailedPlugins().size();
+                        return jenkins.getPluginManager().getFailedPlugins().size();
                     }
                 }),
                 metric(name("jenkins", "plugins", "withUpdate"), new CachedGauge<Integer>(5, TimeUnit.MINUTES) {
@@ -429,11 +487,9 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                     protected Integer loadValue() {
                         int count = 0;
                         Jenkins jenkins = Jenkins.getInstance();
-                        if (jenkins != null) {
-                            for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
-                                if (w.hasUpdate()) {
-                                    count++;
-                                }
+                        for (PluginWrapper w : jenkins.getPluginManager().getPlugins()) {
+                            if (w.hasUpdate()) {
+                                count++;
                             }
                         }
                         return count;
@@ -443,25 +499,30 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         );
     }
 
+    private static boolean computerBuildDurationTimers(String s, Metric metric) {
+        return s.startsWith("jenkins.node.")
+                && s.endsWith(".builds")
+                && s.length() > ("jenkins.node." + ".builds").length()
+                && metric instanceof Timer;
+    }
+
     private MetricSet runCounters() {
-        final Map<String, Metric> runCounters = new HashMap<String, Metric>();
+        final Map<String, Metric> runCounters = new HashMap<>();
         for (String resultName : ResultRunListener.ALL) {
             Meter counter = new Meter();
             jenkinsRunResults.put(resultName, counter);
             runCounters.put(resultName, counter);
         }
-        return new MetricSet() {
-            public Map<String, Metric> getMetrics() {
-                return runCounters;
-            }
-        };
+        return () -> runCounters;
     }
 
     public static JenkinsMetricProviderImpl instance() {
-        Jenkins jenkins = Jenkins.getInstance();
-        return jenkins == null ? null : jenkins.getExtensionList(MetricProvider.class).get(JenkinsMetricProviderImpl.class);
+        return ExtensionList.lookup(MetricProvider.class).get(JenkinsMetricProviderImpl.class);
     }
 
+    /**
+     * {@inheritDoc}
+     */
     @NonNull
     @Override
     public MetricSet getMetricSet() {
@@ -486,46 +547,33 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     private synchronized void updateMetrics() {
         final Jenkins jenkins = Jenkins.getInstance();
-        if (jenkins != null) {
-            Set<Computer> forRetention = new HashSet<Computer>();
-            for (Node node : jenkins.getNodes()) {
-                Computer computer = node.toComputer();
-                if (computer == null) {
-                    continue;
-                }
-                forRetention.add(computer);
+        Set<String> nodeMetricNames = new HashSet<>();
+        for (Node node : jenkins.getNodes()) {
+            nodeMetricNames.add(name("jenkins", "node", node.getNodeName(), "builds"));
+            Computer computer = node.toComputer();
+            if (computer != null) {
                 getOrCreateTimer(computer);
             }
-            MetricRegistry metricRegistry = Metrics.metricRegistry();
-            for (Map.Entry<Computer, Timer> entry : computerBuildDurations.entrySet()) {
-                if (forRetention.contains(entry.getKey())) {
-                    continue;
-                }
-                // purge dead nodes
-                metricRegistry.remove(name("jenkins", "node", entry.getKey().getName(), "builds"));
-            }
-            computerBuildDurations.keySet().retainAll(forRetention);
         }
-
+        MetricRegistry metricRegistry = Metrics.metricRegistry();
+        metricRegistry.getTimers(JenkinsMetricProviderImpl::computerBuildDurationTimers)
+                .keySet()
+                .stream()
+                .filter(name -> !nodeMetricNames.contains(name))
+                .forEach(metricRegistry::remove);
     }
 
     private synchronized Timer getOrCreateTimer(Computer computer) {
         final Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-            ? null
-            : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        MetricsAccessKey.DescriptorImpl descriptor = jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
         if (descriptor == null) {
             throw new IllegalStateException();
         }
         if (!descriptor.getDoPerComputerMetrics()) {
             return new Timer();
         }
-        Timer timer = computerBuildDurations.get(computer);
-        if (timer == null) {
-            timer = Metrics.metricRegistry().timer(name("jenkins", "node", computer.getName(), "builds"));
-            computerBuildDurations.put(computer, timer);
-        }
-        return timer;
+        return computerBuildDurations.computeIfAbsent(computer,
+                c -> Metrics.metricRegistry().timer(name("jenkins", "node", c.getName(), "builds")));
     }
 
     private static class QueueStats {
@@ -640,14 +688,20 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     @Extension
     public static class PeriodicWorkImpl extends PeriodicWork {
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public long getRecurrencePeriod() {
             return TimeUnit.SECONDS
                     .toMillis(5); // the meters expect to be ticked every 5 seconds to give a valid m1, m5 and m15
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
-        protected synchronized void doRun() throws Exception {
+        protected synchronized void doRun() {
             final JenkinsMetricProviderImpl instance = instance();
             if (instance == null) {
                 return;
@@ -655,13 +709,36 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             instance.updateMetrics();
         }
 
+        // TODO Remove once Jenkins 2.129+ see JENKINS-28983
+        @Initializer(
+                after = InitMilestone.EXTENSIONS_AUGMENTED
+        )
+        @Restricted(DoNotUse.class)
+        public static void dynamicInstallHack() {
+            if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
+                // This is a dynamic plugin install
+                VersionNumber version = Jenkins.getVersion();
+                if (version != null && version.isOlderThan(new VersionNumber("2.129"))) {
+                    PeriodicWork p = ExtensionList.lookup(PeriodicWork.class).get(PeriodicWorkImpl.class);
+                    if (p != null) {
+                        jenkins.util.Timer.get().scheduleAtFixedRate(p, p.getInitialDelay(), p.getRecurrencePeriod(),
+                                TimeUnit.MILLISECONDS);
+                    }
+                }
+            }
+        }
+
     }
 
     @Extension
     public static class ResultRunListener extends RunListener<Run> {
         static final String[] ALL = new String[]{
-                "success", "unstable", "failure", "not_built", "aborted", "total"};
+                "success", "unstable", "failure", "not_built", "aborted", "total"
+        };
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public synchronized void onCompleted(Run run, TaskListener listener) {
             JenkinsMetricProviderImpl instance = instance();
@@ -675,14 +752,17 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
 
     @Extension
     public static class RunListenerImpl extends RunListener<Run> {
-        private Map<Run, List<Timer.Context>> contexts = new HashMap<Run, List<Timer.Context>>();
+        private Map<Run, List<Timer.Context>> contexts = new HashMap<>();
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public synchronized void onStarted(Run run, TaskListener listener) {
             JenkinsMetricProviderImpl instance = instance();
             if (instance != null) {
-                List<Timer.Context> contextList = new ArrayList<Timer.Context>();
-                contextList.add(instance.jenkinsJobBuildingTime.time());
+                List<Timer.Context> contextList = new ArrayList<>();
+                contextList.add(instance.jenkinsJobBuildingDuration.time());
                 Executor executor = run.getExecutor();
                 if (executor != null) {
                     Computer computer = executor.getOwner();
@@ -694,35 +774,58 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             ScheduledRate.instance().addAction(run);
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public synchronized void onCompleted(Run run, TaskListener listener) {
-            JenkinsMetricProviderImpl instance = instance();
-            if (instance != null && instance.jenkinsJobBuildingTime != null) {
-                instance.jenkinsJobBuildingTime.update(run.getDuration(), TimeUnit.MILLISECONDS);
-            }
             List<Timer.Context> contextList = contexts.remove(run);
             if (contextList != null) {
                 for (Timer.Context context : contextList) {
                     context.stop();
                 }
             }
+            JenkinsMetricProviderImpl instance = instance();
             TimeInQueueAction action = run.getAction(TimeInQueueAction.class);
-            if (action != null && instance != null && instance.jenkinsJobTotalTime != null) {
-                instance.jenkinsJobTotalTime
-                        .update(run.getDuration() + action.getQueuingDurationMillis(), TimeUnit.MILLISECONDS);
+            if (action != null && instance != null) {
+                if (instance.jenkinsJobQueueDuration != null) {
+                    instance.jenkinsJobQueueDuration.update(action.getQueuingTimeMillis(), TimeUnit.MILLISECONDS);
+                }
+                if (instance.jenkinsJobBlockedDuration != null) {
+                    instance.jenkinsJobBlockedDuration.update(action.getBlockedTimeMillis(), TimeUnit.MILLISECONDS);
+                }
+                if (instance.jenkinsJobBuildableDuration != null) {
+                    instance.jenkinsJobBuildableDuration.update(action.getBuildableTimeMillis(), TimeUnit.MILLISECONDS);
+                }
+                if (instance.jenkinsJobWaitingDuration != null) {
+                    instance.jenkinsJobWaitingDuration.update(action.getWaitingTimeMillis(), TimeUnit.MILLISECONDS);
+                }
+                if (instance.jenkinsJobTotalDuration != null) {
+                    instance.jenkinsJobTotalDuration.update(action.getTotalDurationMillis(), TimeUnit.MILLISECONDS);
+                }
+                if (instance.jenkinsJobExecutionTime != null) {
+                    instance.jenkinsJobExecutionTime.update(action.getExecutingTimeMillis(), TimeUnit.MILLISECONDS);
+                }
             }
-
         }
     }
 
     @Extension(ordinal = Double.MAX_VALUE)
     public static class SchedulingRate extends Queue.QueueDecisionHandler {
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public boolean shouldSchedule(Queue.Task p, List<Action> actions) {
             JenkinsMetricProviderImpl instance = instance();
-            if (instance != null && instance.jenkinsJobScheduleRate != null) {
-                instance.jenkinsJobScheduleRate.mark();
+            if (instance != null) {
+                if (p instanceof Job && instance.jenkinsJobScheduleRate != null) {
+                    instance.jenkinsJobScheduleRate.mark();
+                }
+                if (instance.jenkinsTaskScheduleRate != null) {
+                    instance.jenkinsTaskScheduleRate.mark();
+                }
             }
             return true;
         }
@@ -731,18 +834,49 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
     @Extension
     public static class ScheduledRate extends QueueListener {
 
-        private final Map<WorkUnitContext, TimeInQueueAction> actions = new WeakHashMap<WorkUnitContext,
-                TimeInQueueAction>();
-        private final Map<Queue.BlockedItem, Timer.Context> blocked =
-                new WeakHashMap<Queue.BlockedItem, Timer.Context>();
-        private final Map<Queue.BuildableItem, Timer.Context> buildable =
-                new WeakHashMap<Queue.BuildableItem, Timer.Context>();
-        private final Map<Queue.WaitingItem, Timer.Context> waiting =
-                new WeakHashMap<Queue.WaitingItem, Timer.Context>();
+        /**
+         * How often we trim the {@link ScheduledRate#totals} map.
+         */
+        private static final long TRIM_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
+
+        /**
+         * Our executor service for tracing queue subtasks.
+         */
+        private transient ExecutorService executorService = Executors
+                .newCachedThreadPool(
+                        new NamingThreadFactory(new ExceptionCatchingThreadFactory(new DaemonThreadFactory()),
+                                "QueueSubTaskMetrics"));
+        private final Map<WorkUnitContext, TimeInQueueAction> actions = new WeakHashMap<>();
+        private final Map<Queue.BlockedItem, Timer.Context> blocked = new WeakHashMap<>();
+        private final Map<Queue.BuildableItem, Timer.Context> buildable = new WeakHashMap<>();
+        private final Map<Queue.WaitingItem, Timer.Context> waiting = new WeakHashMap<>();
+        private final AtomicLong nextTrim = new AtomicLong(System.nanoTime());
+        private final ConcurrentMap<Long, ItemTotals> totals = new ConcurrentHashMap<>();
+        private Set<Long> previousIds = new HashSet<>();
 
         public static ScheduledRate instance() {
-            Jenkins jenkins = Jenkins.getInstance();
-            return jenkins == null ? null : jenkins.getExtensionList(QueueListener.class).get(ScheduledRate.class);
+            return ExtensionList.lookup(QueueListener.class).get(ScheduledRate.class);
+        }
+
+        private void trim() {
+            long next = nextTrim.get();
+            if (next - System.nanoTime() < 0L && nextTrim.compareAndSet(next, next + TRIM_INTERVAL_NANOS)) {
+                // we won the trim lottery
+                Queue queue = Jenkins.getInstance().getQueue();
+                // get the IDs that are currently known
+                Set<Long> currentIds = Stream.concat(Stream.of(queue.getItems()), queue.getLeftItems().stream())
+                        .map(Queue.Item::getId)
+                        .collect(Collectors.toCollection(HashSet::new));
+                // remove the currently known IDs from the previous list of known IDs
+                previousIds.removeAll(currentIds);
+                // now remove from the totals the ones that were previously known (at last trim()) but are
+                // no longer known. We need to do it this was as otherwise any IDs that are added while
+                // we trim() would be missing from the currentIds and hence the naive
+                //   totals.keySet().removeAll(currentIds)
+                // would mean we lose full tracking for any items scheduled during a trim()
+                totals.keySet().removeAll(previousIds);
+                previousIds = currentIds;
+            }
         }
 
         public void addAction(Run run) {
@@ -768,83 +902,262 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         }
 
         public void onLeft(Queue.LeftItem li) {
-            long millisecondsInQueue = System.currentTimeMillis() - li.getInQueueSince();
+            final long leftQueueAt = System.currentTimeMillis();
+            long millisecondsInQueue = leftQueueAt - li.getInQueueSince();
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
-            if (instance != null && instance.jenkinsJobQueueTime != null) {
-                instance.jenkinsJobQueueTime.update(millisecondsInQueue, TimeUnit.MILLISECONDS);
+            if (instance != null && instance.jenkinsTaskQueueDuration != null) {
+                instance.jenkinsTaskQueueDuration.update(millisecondsInQueue, TimeUnit.MILLISECONDS);
             }
-            if (li.outcome != null) {
+            ItemTotals t = totals.getOrDefault(li.getId(), ItemTotals.EMPTY);
+            Label assignedLabel = li.getAssignedLabel();
+            final WorkUnitContext wuc = li.outcome;
+            if (wuc != null) {
                 synchronized (actions) {
-                    actions.put(li.outcome, new TimeInQueueAction(millisecondsInQueue));
+                    actions.put(wuc, new TimeInQueueAction(
+                            millisecondsInQueue,
+                            TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                            TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                            TimeUnit.NANOSECONDS.toMillis(t.waiting.get())
+                    ));
                 }
+                Queue.Task owner = li.task.getOwnerTask();
+                while (owner != owner.getOwnerTask()) {
+                    owner = owner.getOwnerTask();
+                }
+                boolean subTask = owner != li.task;
+                CompletableFuture.supplyAsync(asSupplier(wuc.future.getStartCondition()), executorService)
+                        .thenAccept((executable) -> {
+                            long startTimeMillis = System.currentTimeMillis();
+                            long queuingDurationMillis = startTimeMillis - li.getInQueueSince();
+                            List<Set<LabelAtom>> consumedLabelAtoms = wuc.getWorkUnits()
+                                    .stream()
+                                    .map(w -> w == null ? null : w.getExecutor())
+                                    .map(e -> e == null ? null : e.getOwner())
+                                    .map(c -> c == null ? null : c.getNode())
+                                    .map(n -> n == null ? Collections.<LabelAtom>emptySet() : n.getAssignedLabels())
+                                    .collect(Collectors.toList());
+                            QueueItemMetricsListener.notifyStarted(new QueueItemMetricsEvent(
+                                    li,
+                                    assignedLabel,
+                                    QueueItemMetricsEvent.State.STARTED,
+                                    RunResolver.resolve(executable).orElse(null),
+                                    executable,
+                                    consumedLabelAtoms,
+                                    queuingDurationMillis,
+                                    TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
+                                    TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                                    TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                                    null,
+                                    wuc.getWorkUnits().size())
+                            );
+                            CompletableFuture.supplyAsync(asSupplier(wuc.future), executorService)
+                                    .thenRun(() -> {
+                                        long executionDurationMillis =
+                                                System.currentTimeMillis() - startTimeMillis;
+                                        // the run resolver may only work *after* the executable finished
+                                        // as it may rely on state that gets inferred during the start
+                                        // thus we re-resolve after the executable finished
+                                        Optional<Run<?, ?>> run = RunResolver.resolve(executable);
+                                        if (subTask) {
+                                            run.ifPresent(r -> r.addAction(new SubTaskTimeInQueueAction(
+                                                    queuingDurationMillis,
+                                                    TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                                                    TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                                                    TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
+                                                    executionDurationMillis,
+                                                    wuc.getWorkUnits().size()
+                                            )));
+                                        }
+                                        QueueItemMetricsListener.notifyFinished(new QueueItemMetricsEvent(
+                                                        li,
+                                                        assignedLabel,
+                                                        QueueItemMetricsEvent.State.FINISHED,
+                                                        run.orElse(null),
+                                                        executable,
+                                                        consumedLabelAtoms,
+                                                        queuingDurationMillis,
+                                                        TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
+                                                        TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                                                        TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                                                        executionDurationMillis,
+                                                        wuc.getWorkUnits().size()
+                                                )
+                                        );
+                                        if (instance != null
+                                                && instance.jenkinsTaskExecutionDuration != null) {
+                                            instance.jenkinsTaskExecutionDuration.update(
+                                                    executionDurationMillis, TimeUnit.MILLISECONDS
+                                            );
+                                        }
+                                    });
+                        });
+            } else {
+                QueueItemMetricsEvent m = new QueueItemMetricsEvent(
+                        li,
+                        assignedLabel, QueueItemMetricsEvent.State.CANCELLED,
+                        null,
+                        null,
+                        null,
+                        System.currentTimeMillis() - li.getInQueueSince(),
+                        TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
+                        TimeUnit.NANOSECONDS.toMillis(t.buildable.get()),
+                        TimeUnit.NANOSECONDS.toMillis(t.waiting.get()),
+                        null,
+                        null
+                );
+                executorService.submit(() -> QueueItemMetricsListener.notifyCancelled(m));
             }
+            totals.remove(li.getId());
+            trim();
         }
 
+        private void checkEnterQueue(Queue.Item i) {
+            totals.computeIfAbsent(i.getId(), id -> {
+                QueueItemMetricsEvent m = new QueueItemMetricsEvent(
+                        i,
+                        i.getAssignedLabel(),
+                        QueueItemMetricsEvent.State.QUEUED,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
+                executorService.submit(() -> {
+                    QueueItemMetricsListener.notifyStarted(m);
+                });
+                return new ItemTotals(id);
+            });
+        }
+
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void onEnterBlocked(Queue.BlockedItem bi) {
+            checkEnterQueue(bi);
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
-            if (instance != null && instance.jenkinsJobBlockedTime != null) {
+            if (instance != null && instance.jenkinsTaskBlockedDuration != null) {
                 synchronized (blocked) {
                     if (!blocked.containsKey(bi)) {
-                        blocked.put(bi, instance.jenkinsJobBlockedTime.time());
+                        blocked.put(bi, instance.jenkinsTaskBlockedDuration.time());
                     }
                 }
             }
+            trim();
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void onLeaveBlocked(Queue.BlockedItem bi) {
             synchronized (blocked) {
                 Timer.Context context = blocked.remove(bi);
                 if (context != null) {
-                    context.stop();
+                    totals.computeIfAbsent(bi.getId(), ItemTotals::new).blocked.getAndAdd(context.stop());
                 }
             }
+            trim();
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void onEnterBuildable(Queue.BuildableItem bi) {
+            checkEnterQueue(bi);
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
-            if (instance != null && instance.jenkinsJobBuildableTime != null) {
+            if (instance != null && instance.jenkinsTaskBuildableDuration != null) {
                 synchronized (buildable) {
-                    if (!buildable.containsKey(bi)) {
-                        buildable.put(bi, instance.jenkinsJobBuildableTime.time());
-                    }
+                    buildable.computeIfAbsent(bi, (x) -> instance.jenkinsTaskBuildableDuration.time());
                 }
             }
+            trim();
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void onLeaveBuildable(Queue.BuildableItem bi) {
             synchronized (buildable) {
                 Timer.Context context = buildable.remove(bi);
                 if (context != null) {
-                    context.stop();
+                    totals.computeIfAbsent(bi.getId(), ItemTotals::new).buildable.getAndAdd(context.stop());
                 }
             }
+            trim();
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void onEnterWaiting(Queue.WaitingItem wi) {
+            checkEnterQueue(wi);
             JenkinsMetricProviderImpl instance = JenkinsMetricProviderImpl.instance();
-            if (instance != null && instance.jenkinsJobWaitingTime != null) {
+            if (instance != null && instance.jenkinsTaskWaitingDuration != null) {
                 synchronized (waiting) {
-                    if (!waiting.containsKey(wi)) {
-                        waiting.put(wi, instance.jenkinsJobWaitingTime.time());
-                    }
+                    waiting.computeIfAbsent(wi, (x) -> instance.jenkinsTaskWaitingDuration.time());
                 }
             }
+            trim();
         }
 
+        /**
+         * {@inheritDoc}
+         */
         @Override
         public void onLeaveWaiting(Queue.WaitingItem wi) {
             synchronized (waiting) {
                 Timer.Context context = waiting.remove(wi);
                 if (context != null) {
-                    context.stop();
+                    totals.computeIfAbsent(wi.getId(), ItemTotals::new).waiting.getAndAdd(context.stop());
                 }
+            }
+            trim();
+        }
+
+        private static class ItemTotals {
+
+            private static final ItemTotals EMPTY = new ItemTotals(null);
+
+            private final AtomicLong blocked = new AtomicLong();
+            private final AtomicLong buildable = new AtomicLong();
+            private final AtomicLong waiting = new AtomicLong();
+
+            private ItemTotals(Long ignore) {
+
+            }
+
+            @Override
+            public String toString() {
+                return "ItemTotals{" +
+                        "blocked=" + Util.getTimeSpanString(TimeUnit.NANOSECONDS.toMillis(blocked.get())) +
+                        ", buildable=" + Util.getTimeSpanString(TimeUnit.NANOSECONDS.toMillis(buildable.get())) +
+                        ", waiting=" + Util.getTimeSpanString(TimeUnit.NANOSECONDS.toMillis(waiting.get())) +
+                        '}';
             }
         }
     }
 
+    private static <V> Supplier<V> asSupplier(Future<V> future) {
+        return () -> {
+            try {
+                return future.get();
+            } catch (Throwable t) {
+                sneakyThrow(t);
+                throw new RuntimeException(t);
+            }
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <T extends Throwable> void sneakyThrow(Throwable t) throws T {
+        throw (T) t;
+    }
 }

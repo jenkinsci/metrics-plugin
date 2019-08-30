@@ -27,6 +27,7 @@ package jenkins.metrics.api;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+import hudson.ExtensionList;
 import hudson.ExtensionPoint;
 import hudson.Util;
 import hudson.model.AbstractDescribableImpl;
@@ -371,16 +372,13 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
 
         public void checkAccessKey(@CheckForNull String accessKey) {
             Set<String> accessKeySet = this.accessKeySet;
-            Jenkins jenkins = Jenkins.getInstance();
             if (accessKeySet == null) {
                 accessKeySet = new HashSet<String>();
-                if (jenkins != null) {
-                    for (Provider p : jenkins.getExtensionList(Provider.class)) {
+                    for (Provider p : ExtensionList.lookup(Provider.class)) {
                         for (MetricsAccessKey k : p.getAccessKeys()) {
                             accessKeySet.add(k.getKey());
                         }
                     }
-                }
                 synchronized (this) {
                     if (accessKeys != null) {
                         for (MetricsAccessKey k : accessKeys) {
@@ -392,14 +390,12 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             }
             if (!accessKeySet.contains(accessKey)) {
                 // slow check
-                if (jenkins != null) {
-                    for (Provider p : jenkins.getExtensionList(Provider.class)) {
+                    for (Provider p : ExtensionList.lookup(Provider.class)) {
                         if (((!(p instanceof AbstractProvider) || ((AbstractProvider) p).isMayHaveOnDemandKeys())
                                 && p.getAccessKey(accessKey) != null)) {
                             return;
                         }
                     }
-                }
                 throw new AccessDeniedException(Messages.MetricsAccessKey_invalidAccessKey(accessKey));
             }
         }
@@ -453,13 +449,10 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         }
 
         public MetricsAccessKey getAccessKey(String accessKey) {
-            Jenkins jenkins = Jenkins.getInstance();
-            if (jenkins != null) {
-                for (Provider p : jenkins.getExtensionList(Provider.class)) {
-                    MetricsAccessKey key = p.getAccessKey(accessKey);
-                    if (key != null) {
-                        return key;
-                    }
+            for (Provider p : ExtensionList.lookup(Provider.class)) {
+                MetricsAccessKey key = p.getAccessKey(accessKey);
+                if (key != null) {
+                    return key;
                 }
             }
             synchronized (this) {
@@ -511,12 +504,9 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
 
         public void reindexAccessKeys() {
             Set<String> accessKeySet = new HashSet<String>();
-            Jenkins jenkins = Jenkins.getInstance();
-            if (jenkins != null) {
-                for (Provider p : jenkins.getExtensionList(Provider.class)) {
-                    for (MetricsAccessKey k : p.getAccessKeys()) {
-                        accessKeySet.add(k.getKey());
-                    }
+            for (Provider p : ExtensionList.lookup(Provider.class)) {
+                for (MetricsAccessKey k : p.getAccessKeys()) {
+                    accessKeySet.add(k.getKey());
                 }
             }
             synchronized (this) {

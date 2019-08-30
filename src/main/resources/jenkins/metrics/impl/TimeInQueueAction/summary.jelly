@@ -24,21 +24,21 @@
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout"
          xmlns:t="/lib/hudson" xmlns:f="/lib/form">
-  <t:summary icon="/plugin/metrics/images/48x48/clock.png">
+  <t:summary icon="/plugin/metrics/images/48x48/clock.png" href="${it.urlName}" iconOnly="true">
     <j:choose>
       <j:when test="${it.buildingDurationMillis>0}">
         <p>
           ${%blurb}
         </p>
         <ul>
-          <li>${%waiting(it.queuingDurationString)}</li>
+          <li>${%waiting(it.queuingTimeString)}</li>
           <li>${%building(it.buildingDurationString)}</li>
           <li>${%total(it.totalDurationString)}</li>
         </ul>
       </j:when>
       <j:otherwise>
         <p>
-          ${%waiting_still_running(it.queuingDurationString)}
+          ${%waiting_still_running(it.queuingTimeString)}
         </p>
       </j:otherwise>
     </j:choose>

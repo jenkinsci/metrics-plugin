@@ -1,0 +1,34 @@
+unclassified:
+  metricsaccesskey:
+    accessKeys:
+      - key:            "tDdG5Vsv-2-WDdHfI3QFPiU9-hcvKmWd2HL4CfVIFvUumQzz3qf6c0qt_HU4_lUh"
+        description:    "JCasC key"
+        canPing:        false
+        canThreadDump:  true
+        canHealthCheck: false
+        canMetrics:     true
+        origins:        "*"
+
+      - canHealthCheck: true
+        canMetrics: true
+        canPing: true
+        canThreadDump: false
+        description: "kjñkl"
+        key: "9Sllexz9-Z_BdpNMeI3B9wGCzoe0vuEx0r0c1pa03vbbhEBt1L961Q_knDnrRY7J"
+        origins: "*"
+
+      - canHealthCheck: true
+        canMetrics: false
+        canPing: true
+        canThreadDump: false
+        description: "hg jkhjjkhjlkj kh"
+        key: "ZNmaY9xZl-CGDsIrN21xi7Ixtpb2V2d6DWVH5bFyLVuIoQn0ia_F7o1fqW_Vewwf"
+        origins: "*"
+
+      - canHealthCheck: false
+        canMetrics: true
+        canPing: false
+        canThreadDump: false
+        description: "jh jh jk hkjh lkj jk"
+        key: "7nKUPxoWHbLwtKOi483rlxLSk0B2v6lVm1vEqJmImB3odncQOpCgatqmXoTxE7X_"
+        origins: "*"

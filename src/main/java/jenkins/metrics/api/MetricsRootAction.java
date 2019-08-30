@@ -39,11 +39,15 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+import hudson.ExtensionList;
 import hudson.Util;
+import hudson.init.InitMilestone;
+import hudson.init.Initializer;
 import hudson.model.PeriodicWork;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
 import hudson.util.IOUtils;
+import hudson.util.VersionNumber;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -71,8 +75,10 @@ import javax.servlet.http.HttpServletResponse;
 import jenkins.metrics.util.ExponentialLeakyBucket;
 import jenkins.metrics.util.NameRewriterMetricRegistry;
 import jenkins.model.Jenkins;
+import jenkins.util.Timer;
 import org.apache.commons.lang.StringUtils;
 import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.DoNotUse;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
@@ -746,8 +752,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
                     output.write(jsonpCallback.getBytes("US-ASCII"));
                     output.write("(".getBytes("US-ASCII"));
                 }
-                Jenkins jenkins = Jenkins.getInstance();
-                Sampler sampler = jenkins == null ? null : jenkins.getExtensionList(PeriodicWork.class).get(Sampler.class);
+                Sampler sampler = ExtensionList.lookup(PeriodicWork.class).get(Sampler.class);
                 Map<Date, Object> sample = sampler == null
                         ? null
                         : (prefix == null && postfix == null ? sampler.sample() : sampler.sample(prefix, postfix));
@@ -1093,6 +1098,25 @@ public class MetricsRootAction implements UnprotectedRootAction {
                     return null;
                 } finally {
                     IOUtils.closeQuietly(gzis);
+                }
+            }
+        }
+
+        // TODO Remove once Jenkins 2.129+ see JENKINS-28983
+        @Initializer(
+                after = InitMilestone.EXTENSIONS_AUGMENTED
+        )
+        @Restricted(DoNotUse.class)
+        public static void dynamicInstallHack() {
+            if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
+                // This is a dynamic plugin install
+                VersionNumber version = Jenkins.getVersion();
+                if (version != null && version.isOlderThan(new VersionNumber("2.129"))) {
+                    PeriodicWork p = ExtensionList.lookup(PeriodicWork.class).get(Sampler.class);
+                    if (p != null) {
+                        Timer.get().scheduleAtFixedRate(p, p.getInitialDelay(), p.getRecurrencePeriod(),
+                                TimeUnit.MILLISECONDS);
+                    }
                 }
             }
         }

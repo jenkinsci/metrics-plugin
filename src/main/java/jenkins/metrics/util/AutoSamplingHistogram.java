@@ -32,9 +32,11 @@ import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.Reservoir;
 import hudson.Extension;
+import hudson.ExtensionList;
+import hudson.init.InitMilestone;
+import hudson.init.Initializer;
 import hudson.model.PeriodicWork;
-import jenkins.metrics.api.Metrics;
-
+import hudson.util.VersionNumber;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
@@ -42,6 +44,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
+import jenkins.metrics.api.Metrics;
+import jenkins.model.Jenkins;
+import jenkins.util.Timer;
+import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.DoNotUse;
 
 /**
  * This is a {@link Histogram} that is derived from a {@link Gauge} by sampling it 4 times a minute.
@@ -51,9 +58,9 @@ import java.util.logging.Logger;
 public class AutoSamplingHistogram extends Histogram {
 
     private static final Logger LOGGER = Logger.getLogger(AutoSamplingHistogram.class.getName());
-    
+
     private final Gauge<? extends Number> source;
-    
+
     private volatile transient boolean badGauge;
 
     public AutoSamplingHistogram(Gauge<? extends Number> source) {
@@ -104,9 +111,9 @@ public class AutoSamplingHistogram extends Histogram {
 
     @Extension
     public static class PeriodicWorkImpl extends PeriodicWork {
-        
-        private final Map<Histogram,Long> lastWarning = new WeakHashMap<Histogram, Long>();
-        
+
+        private final Map<Histogram, Long> lastWarning = new WeakHashMap<Histogram, Long>();
+
         @Override
         public long getRecurrencePeriod() {
             return TimeUnit.SECONDS.toMillis(15);
@@ -122,7 +129,7 @@ public class AutoSamplingHistogram extends Histogram {
                     } catch (Exception e) {
                         Long lw = lastWarning.get(histogram);
                         final boolean warn = lw == null || lw + TimeUnit.HOURS.toMillis(1) < System.currentTimeMillis();
-                        LogRecord lr = new LogRecord(warn ? Level.WARNING : Level.FINE, 
+                        LogRecord lr = new LogRecord(warn ? Level.WARNING : Level.FINE,
                                 "Uncaught exception when calling update for {0}");
                         lr.setParameters(new Object[]{histogram});
                         lr.setThrown(e);
@@ -141,6 +148,25 @@ public class AutoSamplingHistogram extends Histogram {
                         lr.setParameters(new Object[]{histogram});
                         lr.setThrown(t);
                         LOGGER.log(lr);
+                    }
+                }
+            }
+        }
+
+        // TODO Remove once Jenkins 2.129+ see JENKINS-28983
+        @Initializer(
+                after = InitMilestone.EXTENSIONS_AUGMENTED
+        )
+        @Restricted(DoNotUse.class)
+        public static void dynamicInstallHack() {
+            if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
+                // This is a dynamic plugin install
+                VersionNumber version = Jenkins.getVersion();
+                if (version != null && version.isOlderThan(new VersionNumber("2.129"))) {
+                    PeriodicWork p = ExtensionList.lookup(PeriodicWork.class).get(PeriodicWorkImpl.class);
+                    if (p != null) {
+                        Timer.get().scheduleAtFixedRate(p, p.getInitialDelay(), p.getRecurrencePeriod(),
+                                TimeUnit.MILLISECONDS);
                     }
                 }
             }

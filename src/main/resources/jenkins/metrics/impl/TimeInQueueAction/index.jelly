@@ -1,0 +1,98 @@
+<!--
+ ~ The MIT License
+ ~
+ ~ Copyright (c) 2018, CloudBees, Inc.
+ ~
+ ~ Permission is hereby granted, free of charge, to any person obtaining a copy
+ ~ of this software and associated documentation files (the "Software"), to deal
+ ~ in the Software without restriction, including without limitation the rights
+ ~ to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ ~ copies of the Software, and to permit persons to whom the Software is
+ ~ furnished to do so, subject to the following conditions:
+ ~
+ ~ The above copyright notice and this permission notice shall be included in
+ ~ all copies or substantial portions of the Software.
+ ~
+ ~ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ ~ IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ ~ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ ~ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ ~ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ ~ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ ~ THE SOFTWARE.
+ -->
+<?jelly escape-by-default='true'?>
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout"
+         xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+  <l:layout title="${it.run.displayName} ${it.displayName}">
+    <st:include it="${it.run}" page="sidepanel.jelly"/>
+    <l:main-panel>
+      <h1><l:icon src="${resURL}/plugin/metrics/images/48x48/clock.png"/><st:nbsp/>${%Timings}</h1>
+      <table class="bigtable pane">
+        <thead>
+          <tr>
+          <th/>
+          <th/>
+          <th>${%Primary task}</th>
+          <th>${%Including subtasks}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th rowspan="4" align="left">${%In queue}</th>
+            <th align="left">${%Waiting}</th>
+            <td align="center">${it.waitingDurationString}</td>
+            <td align="center">${it.waitingTimeString}</td>
+          </tr>
+          <tr>
+            <th align="left">${%Blocked}</th>
+            <td align="center">${it.blockedDurationString}</td>
+            <td align="center">${it.blockedTimeString}</td>
+          </tr>
+          <tr>
+            <th align="left">${%Buildable}</th>
+            <td align="center">${it.buildableDurationString}</td>
+            <td align="center">${it.buildableTimeString}</td>
+          </tr>
+          <tr>
+            <th align="left">${%Total}</th>
+            <td align="center">${it.queuingDurationString}</td>
+            <td align="center">${it.queuingTimeString}</td>
+          </tr>
+          <tr>
+            <th colspan="2" align="left">${%Building}</th>
+            <j:choose>
+            <j:when test="${it.buildingDurationMillis>0}">
+            <td align="center">${it.buildingDurationString}</td>
+            <td align="center">${it.executingTimeString}</td>
+            </j:when>
+              <j:otherwise>
+                <td align="center">...</td>
+                <td align="center">...</td>
+              </j:otherwise>
+            </j:choose>
+          </tr>
+          <tr>
+            <th colspan="2" align="left">${%Scheduled to completion}</th>
+            <j:choose>
+            <j:when test="${it.buildingDurationMillis>0}">
+            <td colspan="2" align="center">${it.totalDurationString}</td>
+            </j:when>
+            <j:otherwise>
+              <td colspan="2" align="center">...</td>
+            </j:otherwise>
+            </j:choose>
+          </tr>
+          <tr>
+            <th colspan="2" align="left">${%Number of subtasks}</th>
+            <td colspan="2" align="center">${it.subTaskCount}</td>
+          </tr>
+          <tr>
+            <th colspan="2" align="left">${%Average executor utilization}</th>
+            <td colspan="2" align="center">${%utilization(it.executorUtilization)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </l:main-panel>
+  </l:layout>
+</j:jelly>

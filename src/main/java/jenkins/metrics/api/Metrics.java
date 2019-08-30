@@ -26,7 +26,6 @@ package jenkins.metrics.api;
 
 import com.codahale.metrics.DerivativeGauge;
 import com.codahale.metrics.Gauge;
-import com.codahale.metrics.JmxReporter;
 import com.codahale.metrics.MetricFilter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
@@ -34,10 +33,12 @@ import com.codahale.metrics.Timer;
 import com.codahale.metrics.health.HealthCheck;
 import com.codahale.metrics.health.HealthCheck.Result;
 import com.codahale.metrics.health.HealthCheckRegistry;
+import com.codahale.metrics.jmx.JmxReporter;
 import com.infradna.tool.bridge_method_injector.WithBridgeMethods;
 import edu.umd.cs.findbugs.annotations.CheckForNull;
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+import hudson.ExtensionList;
 import hudson.Plugin;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
@@ -51,6 +52,7 @@ import hudson.triggers.SafeTimerTask;
 import hudson.util.PluginServletFilter;
 import hudson.util.StreamTaskListener;
 import hudson.util.TimeUnit2;
+import hudson.util.VersionNumber;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -65,15 +67,20 @@ import java.util.TreeSet;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
+
 import jenkins.metrics.impl.MetricsFilter;
+import jenkins.metrics.impl.ObjectNameFactoryImpl;
 import jenkins.metrics.util.HealthChecksThreadPool;
 import jenkins.model.Jenkins;
 import net.jcip.annotations.ThreadSafe;
 import org.acegisecurity.context.SecurityContext;
 import org.acegisecurity.context.SecurityContextHolder;
 import org.kohsuke.accmod.Restricted;
+import org.kohsuke.accmod.restrictions.DoNotUse;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpResponse;
 
@@ -109,6 +116,17 @@ public class Metrics extends Plugin {
      */
     public static final Permission HEALTH_CHECK = new Permission(PERMISSIONS,
             "HealthCheck", Messages._Metrics_HealthCheckPermission_Description(), Jenkins.ADMINISTER, PermissionScope.JENKINS);
+
+    /**
+     * JMX domain
+     */
+    public static final String JMX_DOMAIN = "io.jenkins";
+
+    /**
+     * Metrics excluded from JMX export
+     */
+    private static final Pattern JMX_EXCLUSIONS = Pattern.compile("^(vm|system)\\..*|.*\\.(5m|15m|1h|history)$");
+
     /**
      * Our logger.
      */
@@ -142,8 +160,7 @@ public class Metrics extends Plugin {
      */
     @NonNull
     public static HealthCheckRegistry healthCheckRegistry() {
-        Jenkins jenkins = Jenkins.getInstance();
-        Metrics plugin = jenkins == null ? null : jenkins.getPlugin(Metrics.class);
+        Metrics plugin = Jenkins.getInstance().getPlugin(Metrics.class);
         if (plugin == null || plugin.healthCheckRegistry == null) {
             throw new AssertionError(Metrics.class.getName() + " is missing its HealthCheckRegistry");
         }
@@ -152,7 +169,7 @@ public class Metrics extends Plugin {
 
     /**
      * Get the last health check results
-     * 
+     *
      * @return a map with health check name -&gt; health check result
      */
     @NonNull
@@ -168,12 +185,7 @@ public class Metrics extends Plugin {
      */
     @CheckForNull
     public static HealthCheckData getHealthCheckData() {
-        Jenkins jenkins = Jenkins.getInstance();
-        if (jenkins == null) {
-            LOGGER.warning("Unable to get health check results, client master is not ready (startup or shutdown)");
-            return null;
-        }
-        HealthChecker healthChecker = jenkins.getExtensionList(PeriodicWork.class).get(HealthChecker.class);
+        HealthChecker healthChecker = ExtensionList.lookup(PeriodicWork.class).get(HealthChecker.class);
         if (healthChecker == null) {
             LOGGER.warning("Unable to get health check results, HealthChecker is not available");
             return null;
@@ -189,12 +201,20 @@ public class Metrics extends Plugin {
      */
     @NonNull
     public static MetricRegistry metricRegistry() {
-        Jenkins jenkins = Jenkins.getInstance();
-        Metrics plugin = jenkins == null ? null : jenkins.getPlugin(Metrics.class);
+        Metrics plugin = Jenkins.getInstance().getPlugin(Metrics.class);
         if (plugin == null || plugin.metricRegistry == null) {
             throw new AssertionError(Metrics.class.getName() + " is missing its MetricRegistry");
         }
         return plugin.metricRegistry;
+    }
+
+    private static MetricsAccessKey.DescriptorImpl accessKeyDescriptorOrDie() {
+        MetricsAccessKey.DescriptorImpl descriptor =
+                Jenkins.getInstance().getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+        if (descriptor == null) {
+            throw new IllegalStateException();
+        }
+        return descriptor;
     }
 
     /**
@@ -203,14 +223,7 @@ public class Metrics extends Plugin {
      * @param accessKey the access key.
      */
     public static void checkAccessKey(@CheckForNull String accessKey) {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        descriptor.checkAccessKey(accessKey);
+        accessKeyDescriptorOrDie().checkAccessKey(accessKey);
     }
 
     /**
@@ -219,14 +232,7 @@ public class Metrics extends Plugin {
      * @param accessKey the access key.
      */
     public static void checkAccessKeyPing(@CheckForNull String accessKey) {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        descriptor.checkAccessKeyPing(accessKey);
+        accessKeyDescriptorOrDie().checkAccessKeyPing(accessKey);
     }
 
     /**
@@ -235,14 +241,7 @@ public class Metrics extends Plugin {
      * @param accessKey the access key.
      */
     public static void checkAccessKeyThreadDump(@CheckForNull String accessKey) {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        descriptor.checkAccessKeyThreadDump(accessKey);
+        accessKeyDescriptorOrDie().checkAccessKeyThreadDump(accessKey);
     }
 
     /**
@@ -251,14 +250,7 @@ public class Metrics extends Plugin {
      * @param accessKey the access key.
      */
     public static void checkAccessKeyHealthCheck(@CheckForNull String accessKey) {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        descriptor.checkAccessKeyHealthCheck(accessKey);
+        accessKeyDescriptorOrDie().checkAccessKeyHealthCheck(accessKey);
     }
 
     /**
@@ -267,40 +259,18 @@ public class Metrics extends Plugin {
      * @param accessKey the access key.
      */
     public static void checkAccessKeyMetrics(@CheckForNull String accessKey) {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        descriptor.checkAccessKeyMetrics(accessKey);
+        accessKeyDescriptorOrDie().checkAccessKeyMetrics(accessKey);
     }
 
     public static HttpResponse cors(@CheckForNull String accessKey, final HttpResponse resp) {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        return descriptor.cors(accessKey, resp);
+        return accessKeyDescriptorOrDie().cors(accessKey, resp);
     }
-
 
     /**
      * Re-indexes all the access keys from the different {@link MetricsAccessKey.Provider} extensions.
      */
     public static void reindexAccessKeys() {
-        Jenkins jenkins = Jenkins.getInstance();
-        MetricsAccessKey.DescriptorImpl descriptor = jenkins == null
-                ? null
-                : jenkins.getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
-        if (descriptor == null) {
-            throw new IllegalStateException();
-        }
-        descriptor.reindexAccessKeys();
+        accessKeyDescriptorOrDie().reindexAccessKeys();
     }
 
     /**
@@ -309,7 +279,12 @@ public class Metrics extends Plugin {
     @Override
     public void start() throws Exception {
         PluginServletFilter.addFilter(filter);
-        jmxReporter = JmxReporter.forRegistry(metricRegistry).build();
+        jmxReporter = JmxReporter
+                .forRegistry(metricRegistry)
+                .inDomain(JMX_DOMAIN)
+                .createsObjectNamesWith(new ObjectNameFactoryImpl())
+                .filter((name, metric) -> !JMX_EXCLUSIONS.matcher(name).matches())
+                .build();
         jmxReporter.start();
     }
 
@@ -323,7 +298,7 @@ public class Metrics extends Plugin {
     public static void afterExtensionsAugmented() {
         LOGGER.log(Level.FINER, "Registering metric provider and health check provider extensions...");
         Jenkins jenkins = Jenkins.getInstance();
-        Metrics plugin = jenkins == null ? null : jenkins.getPlugin(Metrics.class);
+        Metrics plugin = jenkins.getPlugin(Metrics.class);
         if (plugin == null) {
             LOGGER.log(Level.WARNING, "Could not register metrics providers or health check providers as "
                     + "metrics plugin appears to be disabled");
@@ -335,19 +310,8 @@ public class Metrics extends Plugin {
             return;
         }
         LOGGER.log(Level.FINER, "Confirmed metrics plugin initialized");
-        for (MetricProvider p : jenkins.getExtensionList(MetricProvider.class)) {
-            LOGGER.log(Level.FINER, "Registering metric provider {0} (type {1})", new Object[]{p, p.getClass()});
-            plugin.metricRegistry.registerAll(p.getMetricSet());
-        }
-        for (HealthCheckProvider p : jenkins.getExtensionList(HealthCheckProvider.class)) {
-            LOGGER.log(Level.FINER, "Registering health check provider {0} (type {1})", new Object[]{p, p.getClass()});
-            Map<String, HealthCheck> healthChecks = p.getHealthChecks();
-            for (Map.Entry<String, HealthCheck> c : healthChecks.entrySet()) {
-                plugin.healthCheckRegistry.register(c.getKey(), c.getValue());
-            }
-            LOGGER.log(Level.FINER, "Registered health check provider {0} (type {1}) with {2} checks: {3}",
-                    new Object[] { p, p.getClass(), healthChecks.size(), healthChecks.keySet() });
-        }
+        MetricProviderListener.attach(plugin.metricRegistry);
+        HealthCheckProviderListener.attach(plugin.healthCheckRegistry);
         threadPoolForHealthChecks = new HealthChecksThreadPool(healthCheckRegistry());
         LOGGER.log(Level.FINE, "Metric provider and health check provider extensions registered");
     }
@@ -364,7 +328,7 @@ public class Metrics extends Plugin {
         for (String name : healthCheckRegistry.getNames()) {
             healthCheckRegistry.unregister(name);
         }
-        if (jmxReporter!=null) {
+        if (jmxReporter != null) {
             jmxReporter.stop();
             jmxReporter = null;
         }
@@ -372,7 +336,7 @@ public class Metrics extends Plugin {
 
     /**
      * provides the health check related metrics.
-     * 
+     *
      * @deprecated use HealthCheckMetricsProvider
      */
     @Deprecated
@@ -392,11 +356,7 @@ public class Metrics extends Plugin {
         @NonNull
         @Override
         public MetricSet getMetricSet() {
-            Jenkins jenkins = Jenkins.getInstance();
-            if (jenkins == null) {
-                throw new AssertionError("Jenkins is missing");
-            }
-            HealthChecker c = jenkins.getExtensionList(PeriodicWork.class).get(HealthChecker.class);
+            HealthChecker c = ExtensionList.lookup(PeriodicWork.class).get(HealthChecker.class);
             if (c == null) {
                 throw new AssertionError("HealthChecker is missing");
             }
@@ -420,6 +380,8 @@ public class Metrics extends Plugin {
     // TODO switch to AsyncPeriodicWork once on a new enough Jenkins core
     @Extension
     public static class HealthChecker extends PeriodicWork {
+
+        private static final Logger LOGGER = Logger.getLogger(HealthChecker.class.getName());
 
         /**
          * Timer to track how long the health checks are taking to execute.
@@ -531,35 +493,33 @@ public class Metrics extends Plugin {
         public final void doRun() {
             try {
                 if (future != null && !future.isDone()) {
-                    logger.log(Level.INFO,
+                    LOGGER.log(Level.INFO,
                             HealthChecker.class.getName() + " thread is still running. Execution aborted.");
                     return;
                 }
                 if (threadPoolForHealthChecks == null) {
-                    LOGGER.info("Health checks thread pool not yet initialized, skipping until next execution");
+                    Metrics.LOGGER.info("Health checks thread pool not yet initialized, skipping until next execution");
                     return;
                 }
                 future = threadPoolForHealthChecks.submit(new Runnable() {
                     public void run() {
-                        logger.log(Level.FINE, "Started " + HealthChecker.class.getName());
+                        LOGGER.log(Level.FINE, "Started " + HealthChecker.class.getName());
                         long startTime = System.currentTimeMillis();
 
                         StreamTaskListener l = null;
                         SecurityContext oldContext = ACL.impersonate(ACL.SYSTEM);
                         try {
                             Jenkins jenkins = Jenkins.getInstance();
-                            if (jenkins == null) {
-                                return;
-                            }
                             File logFile = getLogFile(jenkins);
                             if (!logFile.isFile()) {
                                 File oldFile = new File(jenkins.getRootDir(), HealthChecker.class.getName() + ".log");
                                 if (!logFile.getParentFile().isDirectory() && !logFile.getParentFile().mkdirs()) {
-                                    logger.log(Level.SEVERE, "Could not create logs directory: {0}", logFile.getParentFile());
+                                    LOGGER.log(Level.SEVERE, "Could not create logs directory: {0}",
+                                            logFile.getParentFile());
                                 }
                                 if (oldFile.isFile()) {
                                     if (!oldFile.renameTo(logFile)) {
-                                        logger.log(Level.WARNING, "Could not migrate old log file from {0} to {1}",
+                                        LOGGER.log(Level.WARNING, "Could not migrate old log file from {0} to {1}",
                                                 new Object[]{oldFile, logFile});
                                     }
                                 }
@@ -570,13 +530,13 @@ public class Metrics extends Plugin {
                             if (l != null) {
                                 e.printStackTrace(l.fatalError(e.getMessage()));
                             } else {
-                                logger.log(Level.SEVERE,
+                                LOGGER.log(Level.SEVERE,
                                         HealthChecker.class.getName() + " could not create listener", e);
                             }
                         } catch (InterruptedException e) {
                             e.printStackTrace(l.fatalError("aborted"));
                         } catch (Exception e) {
-                            logger.log(Level.SEVERE, "Error running " + HealthChecker.class.getName(), e);
+                            LOGGER.log(Level.SEVERE, "Error running " + HealthChecker.class.getName(), e);
                             if (l != null) {
                                 e.printStackTrace(l.fatalError(e.getMessage()));
                             }
@@ -586,12 +546,12 @@ public class Metrics extends Plugin {
                             }
                             SecurityContextHolder.setContext(oldContext); // required as we are running in a pool
                         }
-                        logger.log(Level.FINE, "Finished " + HealthChecker.class.getName() + ". " +
+                        LOGGER.log(Level.FINE, "Finished " + HealthChecker.class.getName() + ". " +
                                 (System.currentTimeMillis() - startTime) + " ms");
                     }
                 });
             } catch (Throwable t) {
-                logger.log(Level.SEVERE, HealthChecker.class.getName() + " thread failed with error", t);
+                LOGGER.log(Level.SEVERE, HealthChecker.class.getName() + " thread failed with error", t);
             }
         }
 
@@ -623,24 +583,25 @@ public class Metrics extends Plugin {
          * @throws InterruptedException if interrupted.
          */
         private void execute(TaskListener listener) throws IOException, InterruptedException {
+            if (Jenkins.getInstance().getInitLevel().compareTo(InitMilestone.COMPLETED) < 0) {
+                // skip health checks until Jenkins is fully started.
+                return;
+            }
             reindexAccessKeys();
             HealthCheckRegistry registry = healthCheckRegistry();
             // update the active health checks
             Set<String> defined = new HashSet<String>(registry.getNames());
             Set<String> removed = new HashSet<String>(defined);
-            Jenkins jenkins = Jenkins.getInstance();
-            if (jenkins != null) {
-                for (HealthCheckProvider p : jenkins.getExtensionList(HealthCheckProvider.class)) {
-                    for (Map.Entry<String, HealthCheck> c : p.getHealthChecks().entrySet()) {
-                        removed.remove(c.getKey());
-                        if (!defined.contains(c.getKey())) {
-                            registry.register(c.getKey(), c.getValue());
-                            defined.add(c.getKey());
-                        }
+            for (HealthCheckProvider p : ExtensionList.lookup(HealthCheckProvider.class)) {
+                for (Map.Entry<String, HealthCheck> c : p.getHealthChecks().entrySet()) {
+                    removed.remove(c.getKey());
+                    if (!defined.contains(c.getKey())) {
+                        registry.register(c.getKey(), c.getValue());
+                        defined.add(c.getKey());
                     }
                 }
             }
-            for (String key: removed) {
+            for (String key : removed) {
                 registry.unregister(key);
             }
 
@@ -693,6 +654,25 @@ public class Metrics extends Plugin {
                 }
             } else if (lastUnhealthy != null) {
                 LOGGER.log(Level.INFO, "All health checks are reporting as healthy");
+            }
+        }
+
+        // TODO Remove once Jenkins 2.129+ see JENKINS-28983
+        @Initializer(
+                after = InitMilestone.EXTENSIONS_AUGMENTED
+        )
+        @Restricted(DoNotUse.class)
+        public static void dynamicInstallHack() {
+            if (Jenkins.getInstance().getInitLevel() == InitMilestone.COMPLETED) {
+                // This is a dynamic plugin install
+                VersionNumber version = Jenkins.getVersion();
+                if (version != null && version.isOlderThan(new VersionNumber("2.129"))) {
+                    PeriodicWork p = ExtensionList.lookup(PeriodicWork.class).get(HealthChecker.class);
+                    if (p != null) {
+                        jenkins.util.Timer.get().scheduleAtFixedRate(p, p.getInitialDelay(), p.getRecurrencePeriod(),
+                                TimeUnit.MILLISECONDS);
+                    }
+                }
             }
         }
     }
