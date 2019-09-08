@@ -1,6 +1,6 @@
 # Metrics Plugin
 
-This plugin exposes the [Codahale Metrics](http://metrics.codahale.com/) API to Jenkins plugins.
+This plugin exposes the [Metrics](https://metrics.dropwizard.io/) API to Jenkins plugins.
 
 See also this [plugin's wiki page][wiki]
 
