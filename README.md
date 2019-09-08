@@ -28,4 +28,4 @@ To test in a local Jenkins instance
 
     mvn hpi:run
 
-  [wiki]: http://wiki.jenkins-ci.org/display/JENKINS/Metrics+Plugin
+  [wiki]: https://plugins.jenkins.io/metrics
