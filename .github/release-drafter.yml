@@ -1,0 +1,3 @@
+_extends: .github
+tag-template: metrics-$NEXT_MINOR_RELEASE
+
