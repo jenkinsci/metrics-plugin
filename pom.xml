@@ -73,7 +73,7 @@
     <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.findbugs.failure.strict>true</maven.findbugs.failure.strict>
-    <jcasc.version>1.20</jcasc.version>
+    <jcasc.version>1.30</jcasc.version>
   </properties>
 
   <repositories>
