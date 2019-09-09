@@ -1,3 +1,4 @@
 _extends: .github
 tag-template: metrics-$NEXT_MINOR_RELEASE
+version-template: $MAJOR.$MINOR.$PATCH
 
