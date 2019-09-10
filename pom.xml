@@ -40,7 +40,7 @@
   <description>
     This plugin exposes the Metrics API to Jenkins plugins.
   </description>
-  <url>https://plugins.jenkins.io/metrics</url>
+  <url>https://github.com/jenkinsci/metrics-plugin</url>
   <licenses>
     <license>
       <name>The MIT license</name>
