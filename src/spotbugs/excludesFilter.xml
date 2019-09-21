@@ -1,0 +1,6 @@
+<FindBugsFilter>
+  <Match>
+    <!-- TODO: Remove once SpotBugs has full Java 11 support (JENKINS-53720) -->
+    <Bug pattern="RCN_REDUNDANT_NULLCHECK_WOULD_HAVE_BEEN_A_NPE"/>
+  </Match>
+</FindBugsFilter>

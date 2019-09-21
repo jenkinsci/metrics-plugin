@@ -69,7 +69,6 @@
     <metrics.version>4.0.2</metrics.version>
     <revision>4.0.2.7</revision>
     <changelist>-SNAPSHOT</changelist>
-    <maven.findbugs.failure.strict>true</maven.findbugs.failure.strict>
     <jcasc.version>1.30</jcasc.version>
   </properties>
 
