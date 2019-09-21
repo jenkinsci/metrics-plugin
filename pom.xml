@@ -69,9 +69,6 @@
     <metrics.version>4.0.2</metrics.version>
     <revision>4.0.2.7</revision>
     <changelist>-SNAPSHOT</changelist>
-    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <maven.findbugs.failure.strict>true</maven.findbugs.failure.strict>
     <jcasc.version>1.30</jcasc.version>
   </properties>
