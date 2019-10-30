@@ -46,7 +46,6 @@ import hudson.init.Initializer;
 import hudson.model.PeriodicWork;
 import hudson.model.UnprotectedRootAction;
 import hudson.util.HttpResponses;
-import hudson.util.IOUtils;
 import hudson.util.VersionNumber;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -535,11 +534,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
             resp.setStatus(HttpServletResponse.SC_OK);
             resp.setHeader(MetricsRootAction.CACHE_CONTROL, MetricsRootAction.NO_CACHE);
             resp.setContentType(PLAIN_TEXT_CONTENT_TYPE);
-            final PrintWriter writer = resp.getWriter();
-            try {
+            try (PrintWriter writer = resp.getWriter()) {
                 writer.println(CONTENT);
-            } finally {
-                writer.close();
             }
         }
     }
@@ -608,11 +604,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
             resp.setStatus(HttpServletResponse.SC_OK);
             resp.setHeader(CACHE_CONTROL, NO_CACHE);
             resp.setContentType(PLAIN_TEXT_CONTENT_TYPE);
-            final OutputStream output = resp.getOutputStream();
-            try {
+            try (OutputStream output = resp.getOutputStream()) {
                 threadDump.dump(output);
-            } finally {
-                output.close();
             }
         }
     }
@@ -663,8 +656,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 }
             }
 
-            final OutputStream output = resp.getOutputStream();
-            try {
+            try (OutputStream output = resp.getOutputStream()) {
                 if (jsonp) {
                     output.write(jsonpCallback.getBytes("US-ASCII"));
                     output.write("(".getBytes("US-ASCII"));
@@ -673,8 +665,6 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 if (jsonp) {
                     output.write(");".getBytes("US-ASCII"));
                 }
-            } finally {
-                output.close();
             }
         }
     }
@@ -709,8 +699,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
             resp.setContentType(jsonp ? JSONP_CONTENT_TYPE : JSON_CONTENT_TYPE);
             resp.setStatus(HttpServletResponse.SC_OK);
 
-            final OutputStream output = resp.getOutputStream();
-            try {
+            try (OutputStream output = resp.getOutputStream()) {
                 if (jsonp) {
                     output.write(jsonpCallback.getBytes("US-ASCII"));
                     output.write("(".getBytes("US-ASCII"));
@@ -722,8 +711,6 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 if (jsonp) {
                     output.write(");".getBytes("US-ASCII"));
                 }
-            } finally {
-                output.close();
             }
         }
     }
@@ -746,8 +733,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
             resp.setContentType(jsonp ? JSONP_CONTENT_TYPE : JSON_CONTENT_TYPE);
             resp.setStatus(HttpServletResponse.SC_OK);
 
-            final OutputStream output = resp.getOutputStream();
-            try {
+            try (OutputStream output = resp.getOutputStream()) {
                 if (jsonp) {
                     output.write(jsonpCallback.getBytes("US-ASCII"));
                     output.write("(".getBytes("US-ASCII"));
@@ -760,8 +746,6 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 if (jsonp) {
                     output.write(");".getBytes("US-ASCII"));
                 }
-            } finally {
-                output.close();
             }
         }
     }
@@ -1028,12 +1012,8 @@ public class MetricsRootAction implements UnprotectedRootAction {
                 // always allocate 1kb more that the average compressed size
                 ByteArrayOutputStream baos = new ByteArrayOutputStream(averageSize + 1024);
                 try {
-                    GZIPOutputStream gzos = null;
-                    try {
-                        gzos = new GZIPOutputStream(baos);
+                    try (GZIPOutputStream gzos = new GZIPOutputStream(baos)) {
                         writer.writeValue(gzos, Metrics.metricRegistry());
-                    } finally {
-                        IOUtils.closeQuietly(gzos);
                     }
                 } finally {
                     baos.close();
@@ -1088,16 +1068,12 @@ public class MetricsRootAction implements UnprotectedRootAction {
              */
             @CheckForNull
             public JsonNode getValue(@NonNull ObjectReader reader) {
-                GZIPInputStream gzis = null;
-                try {
-                    gzis = new GZIPInputStream(new ByteArrayInputStream(v));
+                try (GZIPInputStream gzis = new GZIPInputStream(new ByteArrayInputStream(v))) {
                     return reader.readTree(gzis);
                 } catch (JsonProcessingException e) {
                     return null;
                 } catch (IOException e) {
                     return null;
-                } finally {
-                    IOUtils.closeQuietly(gzis);
                 }
             }
         }
