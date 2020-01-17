@@ -65,7 +65,7 @@
 
   <properties>
     <java.level>8</java.level>
-    <jenkins.version>2.60.3</jenkins.version>
+    <jenkins.version>2.138.4</jenkins.version>
     <metrics.version>4.0.2</metrics.version>
     <revision>4.0.2.7</revision>
     <changelist>-SNAPSHOT</changelist>
