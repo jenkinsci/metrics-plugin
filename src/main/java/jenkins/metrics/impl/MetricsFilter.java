@@ -109,14 +109,14 @@ public class MetricsFilter implements Filter {
     public void doFilter(ServletRequest request,
                          ServletResponse response,
                          FilterChain chain) throws IOException, ServletException {
-        
+
         if (!(response instanceof HttpServletResponse)) {
             // We can record status code for HTTP responses only
             // For other response types we just fall through and call further filters
             chain.doFilter(request, response);
             return;
         }
-                
+
         final StatusExposingServletResponse wrappedResponse =
                 new StatusExposingServletResponse((HttpServletResponse) response);
         activeRequests.inc();
