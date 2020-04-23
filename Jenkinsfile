@@ -12,10 +12,7 @@ podTemplate(
                     resourceLimitCpu: '1000m',
                     resourceLimitMemory: '2000Mi',
                     ttyEnabled: true),
-    ],
-    volumes: ([
-        hostPathVolume(hostPath: '/var/run/docker.sock', mountPath: '/var/run/docker.sock'),
-    ])
+    ]
 ) {
     properties([buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '20'))])
     node(label) {
