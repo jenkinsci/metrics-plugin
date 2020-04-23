@@ -51,7 +51,6 @@ import hudson.security.PermissionScope;
 import hudson.triggers.SafeTimerTask;
 import hudson.util.PluginServletFilter;
 import hudson.util.StreamTaskListener;
-import hudson.util.TimeUnit2;
 import hudson.util.VersionNumber;
 import java.io.File;
 import java.io.IOException;
@@ -433,8 +432,8 @@ public class Metrics extends Plugin {
          * {@inheritDoc}
          */
         public long getRecurrencePeriod() {
-            return TimeUnit2.MINUTES.toMillis(Math.min(Math.max(1, HEALTH_CHECK_INTERVAL_MINS),
-                    TimeUnit2.DAYS.toMinutes(1)));
+            return TimeUnit.MINUTES.toMillis(Math.min(Math.max(1, HEALTH_CHECK_INTERVAL_MINS),
+                    TimeUnit.DAYS.toMinutes(1)));
         }
 
         /**
