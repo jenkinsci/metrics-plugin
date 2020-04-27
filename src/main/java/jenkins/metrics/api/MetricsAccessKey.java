@@ -353,7 +353,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         public synchronized boolean configure(StaplerRequest req, JSONObject json) throws FormException {
             accessKeys = req.bindJSONToList(MetricsAccessKey.class, json.get("accessKeys"));
             accessKeySet = null;
-            doPerComputerMetrics = json.optString("doPerComputerMetrics").equals("false");
+            doPerComputerMetrics = json.optString("doPerComputerMetrics").equals("true");
             save();
             return true;
         }
