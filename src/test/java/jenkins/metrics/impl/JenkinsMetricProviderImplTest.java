@@ -25,44 +25,87 @@
 package jenkins.metrics.impl;
 
 import hudson.ExtensionList;
+import hudson.model.FreeStyleBuild;
 import hudson.model.FreeStyleProject;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+
+import hudson.model.Run;
+import hudson.model.queue.QueueTaskFuture;
 import jenkins.metrics.api.Metrics;
 import jenkins.metrics.api.QueueItemMetricsEvent;
 import jenkins.metrics.api.QueueItemMetricsListener;
+import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.jvnet.hudson.test.BuildWatcher;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.SleepBuilder;
 import org.jvnet.hudson.test.TestExtension;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.junit.Assert.assertThat;
 
 public class JenkinsMetricProviderImplTest {
     @Rule
     public JenkinsRule j = new JenkinsRule();
+
+    @ClassRule
+    public static BuildWatcher w = new BuildWatcher();
+
+    @Test
+    public void given__a_job_which_is_cancelled() throws Exception {
+        MyListener listener = ExtensionList.lookup(QueueItemMetricsListener.class).get(MyListener.class);
+        assertThat(listener, notNullValue());
+
+        FreeStyleProject job = j.createProject(FreeStyleProject.class);
+
+        QueueTaskFuture<FreeStyleBuild> taskFuture = job.scheduleBuild2(10);
+        taskFuture.cancel(true);
+
+        try{
+            j.waitForCompletion(taskFuture.waitForStart());
+        }catch (Throwable t){
+            //CancellationException expected
+        }
+
+        //wait for completion
+        while (!listener.state.toString().contains("C")){
+            Thread.sleep(100);
+        }
+
+        assertThat(listener.state.toString(), containsString("Q"));
+        assertThat(listener.state.toString(), containsString("C"));
+
+    }
 
     @Test
     public void given__a_job__when__built__then__events_and_metrics_include_build() throws Exception {
         j.jenkins.setQuietPeriod(0);
         MyListener listener = ExtensionList.lookup(QueueItemMetricsListener.class).get(MyListener.class);
         assertThat(listener, notNullValue());
+
         FreeStyleProject p = j.createProject(FreeStyleProject.class);
         p.setQuietPeriod(0);
         p.getBuildersList().add(new SleepBuilder(3000));
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getCount(), is(0L));
         assertThat(listener.getEvents(), is(emptyCollectionOf(QueueItemMetricsEvent.class)));
         j.assertBuildStatusSuccess(p.scheduleBuild2(2));
+
+        assertThat(listener.state.toString(), containsString("Q"));
+        assertThat(listener.state.toString(), containsString("S"));
+        assertThat(listener.state.toString(), containsString("F"));
+
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getCount(), is(1L));
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getSnapshot().getMean(),
                 allOf(greaterThan(TimeUnit.MILLISECONDS.toNanos(2500)*1.0),
@@ -96,9 +139,11 @@ public class JenkinsMetricProviderImplTest {
     @TestExtension
     public static class MyListener extends QueueItemMetricsListener {
         private final List<QueueItemMetricsEvent> events = new ArrayList<>();
+        public StringBuilder state = new StringBuilder();
 
         @Override
         public void onQueued(QueueItemMetricsEvent event) {
+            state.append("Q");
             synchronized (events) {
                 events.add(event);
             }
@@ -107,6 +152,7 @@ public class JenkinsMetricProviderImplTest {
 
         @Override
         public void onCancelled(QueueItemMetricsEvent event) {
+            state.append("C");
             synchronized (events) {
                 events.add(event);
             }
@@ -114,6 +160,7 @@ public class JenkinsMetricProviderImplTest {
 
         @Override
         public void onStarted(QueueItemMetricsEvent event) {
+            state.append("S");
             synchronized (events) {
                 events.add(event);
             }
@@ -121,6 +168,7 @@ public class JenkinsMetricProviderImplTest {
 
         @Override
         public void onFinished(QueueItemMetricsEvent event) {
+            state.append("F");
             synchronized (events) {
                 events.add(event);
             }
