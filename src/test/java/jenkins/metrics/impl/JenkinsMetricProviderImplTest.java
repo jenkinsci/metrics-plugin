@@ -102,6 +102,10 @@ public class JenkinsMetricProviderImplTest {
         assertThat(listener.getEvents(), is(emptyCollectionOf(QueueItemMetricsEvent.class)));
         j.assertBuildStatusSuccess(p.scheduleBuild2(2));
 
+        //wait for completion
+        while (!listener.state.toString().contains("F")){
+            Thread.sleep(100);
+        }
         assertThat(listener.state.toString(), containsString("Q"));
         assertThat(listener.state.toString(), containsString("S"));
         assertThat(listener.state.toString(), containsString("F"));
