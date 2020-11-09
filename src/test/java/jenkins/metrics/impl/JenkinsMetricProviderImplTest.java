@@ -136,7 +136,7 @@ public class JenkinsMetricProviderImplTest {
         assertThat(events.get(2).getExecutable(), is(Optional.of(p.getBuildByNumber(1))));
         assertThat(events.get(2).getQueuingTotalMillis().orElse(null), greaterThan(1500L));
         assertThat(events.get(2).getQueuingWaitingMillis().orElse(null), greaterThan(1500L));
-        assertThat(events.get(2).getExecutingMillis().orElse(null), allOf(greaterThan(2500L), lessThan(3500L)));
+        assertThat(events.get(2).getExecutingMillis().orElse(null), allOf(greaterThan(2500L), lessThan(3800L)));
         assertThat(events.get(2).getExecutorCount().orElse(null), is(1));
     }
 
