@@ -1018,7 +1018,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                         null,
                         null);
                 executorService.submit(() -> {
-                     QueueItemMetricsListener.notifyQueued(m);
+                    QueueItemMetricsListener.notifyQueued(m);
                 });
                 return new ItemTotals(id);
             });
