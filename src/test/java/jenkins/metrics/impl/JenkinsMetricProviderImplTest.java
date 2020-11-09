@@ -81,7 +81,7 @@ public class JenkinsMetricProviderImplTest {
 
         //wait for completion
         while (!listener.state.toString().contains("C")){
-            Thread.sleep(100);
+            Thread.sleep(10);
         }
 
         assertThat(listener.state.toString(), containsString("Q"));
@@ -104,7 +104,7 @@ public class JenkinsMetricProviderImplTest {
 
         //wait for completion
         while (!listener.state.toString().contains("F")){
-            Thread.sleep(100);
+            Thread.sleep(10);
         }
         assertThat(listener.state.toString(), containsString("Q"));
         assertThat(listener.state.toString(), containsString("S"));
@@ -113,7 +113,7 @@ public class JenkinsMetricProviderImplTest {
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getCount(), is(1L));
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getSnapshot().getMean(),
                 allOf(greaterThan(TimeUnit.MILLISECONDS.toNanos(2500)*1.0),
-                        lessThan(TimeUnit.MILLISECONDS.toNanos(3500) * 1.0)));
+                        lessThan(TimeUnit.MILLISECONDS.toNanos(3800) * 1.0)));
         List<QueueItemMetricsEvent> events = listener.getEvents();
         assertThat(events.size(), is(3));
         Collections.sort(events, QueueItemMetricsEvent::compareEventSequence);
