@@ -27,19 +27,11 @@ package jenkins.metrics.impl;
 import hudson.ExtensionList;
 import hudson.model.FreeStyleBuild;
 import hudson.model.FreeStyleProject;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-
-import hudson.model.Run;
 import hudson.model.queue.QueueTaskFuture;
 import jenkins.metrics.api.Metrics;
 import jenkins.metrics.api.QueueItemMetricsEvent;
 import jenkins.metrics.api.QueueItemMetricsListener;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.jvnet.hudson.test.BuildWatcher;
@@ -47,9 +39,14 @@ import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.SleepBuilder;
 import org.jvnet.hudson.test.TestExtension;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -84,8 +81,7 @@ public class JenkinsMetricProviderImplTest {
             Thread.sleep(10);
         }
 
-        assertThat(listener.state.toString(), containsString("Q"));
-        assertThat(listener.state.toString(), containsString("C"));
+        assertThat(listener.state.toString(), is("QC"));
 
     }
 
@@ -106,9 +102,7 @@ public class JenkinsMetricProviderImplTest {
         while (!listener.state.toString().contains("F")){
             Thread.sleep(10);
         }
-        assertThat(listener.state.toString(), containsString("Q"));
-        assertThat(listener.state.toString(), containsString("S"));
-        assertThat(listener.state.toString(), containsString("F"));
+        assertThat(listener.state.toString(), is("QSF"));
 
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getCount(), is(1L));
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getSnapshot().getMean(),
