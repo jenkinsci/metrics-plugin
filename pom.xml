@@ -93,11 +93,6 @@
         <scope>import</scope>
         <type>pom</type>
       </dependency>
-      <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-api</artifactId>
-        <version>1.7.30</version>
-      </dependency>
     </dependencies>
   </dependencyManagement>
   <dependencies>
@@ -106,32 +101,72 @@
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-core</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-servlet</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-healthchecks</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-jvm</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-jmx</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-json</artifactId>
       <version>${metrics.version}</version>
       <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
         <exclusion>
           <!-- use the version supplied by jackson2-api -->
           <groupId>com.fasterxml.jackson.core</groupId>
