@@ -173,7 +173,7 @@ Larger values indicate increasing health as measured by the health checks.
 Jenkins allows configuring a quiet period for most job types.
 While in the quiet period multiple identical requests for building the job will be coalesced.
 Traditionally this was used with source control systems that do not provide an atomic commit facility - such as CVS - in order to ensure that all the files in a large commit were picked up as a single build.
-With more modern source control systems the quiet period can still be useful, for example to ensure that push notification of the came commit via redundant parallel notification paths get coalesced.
+With more modern source control systems the quiet period can still be useful, for example to ensure that push notification of the same commit via redundant parallel notification paths get coalesced.
 `jenkins.job.count.value` (gauge):: The number of jobs in Jenkins
 `jenkins.job.count.history` (histogram):: The historical statistics of `jenkins.job.count.value`.
 `jenkins.job.scheduled` (meter):: The rate at which jobs are scheduled.
