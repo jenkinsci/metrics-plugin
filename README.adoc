@@ -29,7 +29,7 @@ There may be other nodes that fail the check, but this health check is
 designed to fail fast.
 
 `thread-deadlock`:: Returns `FAIL` if there are any deadlocked threads in the Jenkins
-master JVM.
+ JVM.
 
 === Standard metrics
 There are five types of metric defined in the Dropwizard Metrics API:
@@ -41,19 +41,19 @@ There are five types of metric defined in the Dropwizard Metrics API:
 - A *timer* is basically a histogram of the duration of events coupled with a meter of the rate of the event occurrence. 
 
 ==== System and Java Virtual Machine metrics
-`system.cpu.load` (gauge):: The system load on the Jenkins master as reported by the JVM's Operating System JMX bean.
+`system.cpu.load` (gauge):: The system load on the Jenkins controller as reported by the JVM's Operating System JMX bean.
 _The calculation of system load is operating system dependent._ Typically this is the sum of the number of processes that are currently running plus the number that are waiting to run.
 This is typically comparable against the number of CPU cores.
 
-`vm.blocked.count` (gauge):: The number of threads in the Jenkins master JVM that are currently blocked waiting for a monitor lock.
+`vm.blocked.count` (gauge):: The number of threads in the Jenkins JVM that are currently blocked waiting for a monitor lock.
 
-`vm.count` (gauge):: The total number of threads in the Jenkins master JVM.
+`vm.count` (gauge):: The total number of threads in the Jenkins JVM.
 This is the sum of: `vm.blocked.count`, `vm.new.count`, `vm.runnable.count`, `vm.terminated.count`, `vm.timed_waiting.count` and `vm.waiting.count`
 
-`vm.cpu.load` (gauge):: The rate of CPU time usage by the JVM per unit time on the Jenkins master.
-This is equivalent to the number of CPU cores being used by the Jenkins master JVM.
+`vm.cpu.load` (gauge):: The rate of CPU time usage by the JVM per unit time on the Jenkins controller.
+This is equivalent to the number of CPU cores being used by the Jenkins JVM.
 
-`vm.daemon.count` (gauge):: The number of threads in the Jenkins master JVM that are marked as Daemon threads.
+`vm.daemon.count` (gauge):: The number of threads in the Jenkins JVM that are marked as Daemon threads.
 
 `vm.deadlocks` (gauge):: The number of threads that have a currently detected deadlock with at least one other thread.
 
@@ -68,13 +68,13 @@ There will be one metric for each of the garbage collectors reported by the JVM.
 The `X` names are supplied by and dependent on the JVM.
 There will be one metric for each of the garbage collectors reported by the JVM.
 
-`vm.memory.heap.committed` (gauge):: The amount of memory, in the heap that is used for object allocation, that is guaranteed by the operating system as available for use by the Jenkins master JVM.
+`vm.memory.heap.committed` (gauge):: The amount of memory, in the heap that is used for object allocation, that is guaranteed by the operating system as available for use by the Jenkins JVM.
 (Units of measurement: bytes)
 
-`vm.memory.heap.init` (gauge):: The amount of memory, in the heap that is used for object allocation, that the Jenkins master JVM initially requested from the operating system.
+`vm.memory.heap.init` (gauge):: The amount of memory, in the heap that is used for object allocation, that the Jenkins JVM initially requested from the operating system.
 (Units of measurement: bytes)
 
-`vm.memory.heap.max` (gauge):: The maximum amount of memory, in the heap that is used for object allocation, that the Jenkins master JVM is allowed to request from the operating system.
+`vm.memory.heap.max` (gauge):: The maximum amount of memory, in the heap that is used for object allocation, that the Jenkins JVM is allowed to request from the operating system.
 This amount of memory is not guaranteed to be available for memory management if it is greater than the amount of committed memory.
 The JVM may fail to allocate memory even if the amount of used memory does not exceed this maximum size.
 (Units of measurement: bytes)
@@ -82,15 +82,15 @@ The JVM may fail to allocate memory even if the amount of used memory does not e
 `vm.memory.heap.usage` (gauge):: The ratio of `vm.memory.heap.used` to `vm.memory.heap.max`.
 (This is a value between `0` and `1` inclusive)
 
-`vm.memory.heap.used` (gauge):: The amount of memory, in the heap that is used for object allocation, that the Jenkins master JVM is currently using.(Units of measurement: bytes)
+`vm.memory.heap.used` (gauge):: The amount of memory, in the heap that is used for object allocation, that the Jenkins JVM is currently using.(Units of measurement: bytes)
 
-`vm.memory.non-heap.committed` (gauge):: The amount of memory, outside the heap that is used for object allocation, that is guaranteed by the operating system as available for use by the Jenkins master JVM.
+`vm.memory.non-heap.committed` (gauge):: The amount of memory, outside the heap that is used for object allocation, that is guaranteed by the operating system as available for use by the Jenkins JVM.
 (Units of measurement: bytes)
 
-`vm.memory.non-heap.init` (gauge):: The amount of memory, outside the heap that is used for object allocation, that the Jenkins master JVM initially requested from the operating system.
+`vm.memory.non-heap.init` (gauge):: The amount of memory, outside the heap that is used for object allocation, that the Jenkins JVM initially requested from the operating system.
 (Units of measurement: bytes)
 
-`vm.memory.non-heap.max` (gauge):: The maximum amount of memory, outside the heap that is used for object allocation, that the Jenkins master JVM is allowed to request from the operating system.
+`vm.memory.non-heap.max` (gauge):: The maximum amount of memory, outside the heap that is used for object allocation, that the Jenkins JVM is allowed to request from the operating system.
 This amount of memory is not guaranteed to be available for memory management if it is greater than the amount of committed memory.
 The JVM may fail to allocate memory even if the amount of used memory does not exceed this maximum size.
 (Units of measurement: bytes)
@@ -98,51 +98,51 @@ The JVM may fail to allocate memory even if the amount of used memory does not e
 `vm.memory.non-heap.usage` (gauge):: The ratio of `vm.memory.non-heap.used` to `vm.memory.non-heap.max`.
 (This is a value between `0` and `1` inclusive)
 
-`vm.memory.non-heap.used` (gauge):: The amount of memory, outside the heap that is used for object allocation, that the Jenkins master JVM is currently using.
+`vm.memory.non-heap.used` (gauge):: The amount of memory, outside the heap that is used for object allocation, that the Jenkins JVM is currently using.
 (Units of measurement: bytes)
 
 `vm.memory.pools..usage` (gauge):: The usage level of the `` memory pool, where a value of `0` represents an unused pool while a value of `1` represents a pool that is at capacity.
 The `` names are supplied by and dependent on the JVM.
 There will be one metric for each of the memory pools reported by the JVM.
-`vm.memory.total.committed` (gauge):: The total amount of memory that is guaranteed by the operating system as available for use by the Jenkins master JVM.
+`vm.memory.total.committed` (gauge):: The total amount of memory that is guaranteed by the operating system as available for use by the Jenkins JVM.
 (Units of measurement: bytes)
 
-`vm.memory.total.init` (gauge):: The total amount of memory that the Jenkins master JVM initially requested from the operating system.
+`vm.memory.total.init` (gauge):: The total amount of memory that the Jenkins JVM initially requested from the operating system.
 (Units of measurement: bytes)
 
-`vm.memory.total.max` (gauge):: The maximum amount of memory that the Jenkins master JVM is allowed to request from the operating system.
+`vm.memory.total.max` (gauge):: The maximum amount of memory that the Jenkins JVM is allowed to request from the operating system.
 This amount of memory is not guaranteed to be available for memory management if it is greater than the amount of committed memory.
 The JVM may fail to allocate memory even if the amount of used memory does not exceed this maximum size.
 (Units of measurement: bytes)
 
-`vm.memory.total.used` (gauge):: The total amount of memory that the Jenkins master JVM is currently using.(Units of measurement: bytes)
+`vm.memory.total.used` (gauge):: The total amount of memory that the Jenkins JVM is currently using.(Units of measurement: bytes)
 
-`vm.new.count` (gauge):: The number of threads in the Jenkins master JVM that have not currently started execution.
+`vm.new.count` (gauge):: The number of threads in the Jenkins JVM that have not currently started execution.
 
-`vm.runnable.count` (gauge):: The number of threads in the Jenkins master JVM that are currently executing in the JVM.
+`vm.runnable.count` (gauge):: The number of threads in the Jenkins JVM that are currently executing in the JVM.
 Some of these threads may be waiting for other resources from the operating system such as the processor.
 
-`vm.terminated.count` (gauge):: The number of threads in the Jenkins master JVM that have completed execution.
+`vm.terminated.count` (gauge):: The number of threads in the Jenkins JVM that have completed execution.
 
-`vm.timed_waiting.count` (gauge):: The number of threads in the Jenkins master JVM that have suspended execution for a defined period of time.
+`vm.timed_waiting.count` (gauge):: The number of threads in the Jenkins JVM that have suspended execution for a defined period of time.
 
-`vm.uptime.milliseconds` (gauge):: The number of milliseconds since the Jenkins master JVM started
+`vm.uptime.milliseconds` (gauge):: The number of milliseconds since the Jenkins JVM started
 
-`vm.waiting.count` (gauge):: The number of threads in the Jenkins master JVM that are currently waiting on another thread to perform a particular action.
+`vm.waiting.count` (gauge):: The number of threads in the Jenkins JVM that are currently waiting on another thread to perform a particular action.
 
 ==== Web UI metrics
-`http.activeRequests` (counter):: The number of currently active requests against the Jenkins master Web UI.
-`http.responseCodes.badRequest` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/400` status code
-`http.responseCodes.created` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/201` status code
-`http.responseCodes.forbidden` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/403` status code
-`http.responseCodes.noContent` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/204` status code
-`http.responseCodes.notFound` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/404` status code
-`http.responseCodes.notModified` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/304` status code
-`http.responseCodes.ok` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/200` status code
-`http.responseCodes.other` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a non-informational status code that is not in the list: `HTTP/200`, `HTTP/201`, `HTTP/204`, `HTTP/304`, `HTTP/400`, `HTTP/403`, `HTTP/404`, `HTTP/500`, or `HTTP/503`
-`http.responseCodes.serverError` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/500` status code
-`http.responseCodes.serviceUnavailable` (meter):: The rate at which the Jenkins master Web UI is responding to requests with a `HTTP/503` status code
-`http.requests` (timer):: The rate at which the Jenkins master Web UI is receiving requests and the time spent generating the corresponding responses.
+`http.activeRequests` (counter):: The number of currently active requests against the Jenkins Web UI.
+`http.responseCodes.badRequest` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/400` status code
+`http.responseCodes.created` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/201` status code
+`http.responseCodes.forbidden` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/403` status code
+`http.responseCodes.noContent` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/204` status code
+`http.responseCodes.notFound` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/404` status code
+`http.responseCodes.notModified` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/304` status code
+`http.responseCodes.ok` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/200` status code
+`http.responseCodes.other` (meter):: The rate at which the Jenkins Web UI is responding to requests with a non-informational status code that is not in the list: `HTTP/200`, `HTTP/201`, `HTTP/204`, `HTTP/304`, `HTTP/400`, `HTTP/403`, `HTTP/404`, `HTTP/500`, or `HTTP/503`
+`http.responseCodes.serverError` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/500` status code
+`http.responseCodes.serviceUnavailable` (meter):: The rate at which the Jenkins Web UI is responding to requests with a `HTTP/503` status code
+`http.requests` (timer):: The rate at which the Jenkins Web UI is receiving requests and the time spent generating the corresponding responses.
 
 ==== Jenkins specific metrics
 `jenkins.executor.count.value` (gauge):: The number of executors available to Jenkins.
@@ -178,7 +178,7 @@ With more modern source control systems the quiet period can still be useful, fo
 `jenkins.job.count.history` (histogram):: The historical statistics of `jenkins.job.count.value`.
 `jenkins.job.scheduled` (meter):: The rate at which jobs are scheduled.
 If a job is already in the queue and an identical request for scheduling the job is received then Jenkins will coalesce the two requests.
-This metric gives a reasonably pure measure of the load requirements of the Jenkins master as it is unaffected by the number of executors available to the system.
+This metric gives a reasonably pure measure of the load requirements of the Jenkins controller as it is unaffected by the number of executors available to the system.
 Multiplying this metric by `jenkins.job.building.duration` gives an approximate measure of the number of executors required in order to ensure that every build request results in a build.
 A more accurate measure can be obtained from a job-by-job summation of the scheduling rate for that job and the average build duration of that job.The most accurate measure would require maintaining separate sums partitioned by the labels that each job can run against in order to determine the number of each type of executor required.
 Such calculations assume that: every build node is equivalent and/or the build times are comparable across all build nodes; and build times are unaffected by other jobs running in parallel on other executors on the same node.
@@ -241,7 +241,7 @@ The Metrics servlet returns the Metrics in JSON format (There is also support fo
 
 The Ping servlet returns the text "pong" and a `HTTP/200` status code.
 
-The Threads servlet returns a thread dump from the master only.
+The Threads servlet returns a thread dump from the controller only.
 
 The Healthcheck servlet runs the healthchecks defined against the Metrics API and returns the detailed status in `JSON` (or `JSONP`) format, while the high level status is reported by the HTTP status code.
 
