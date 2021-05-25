@@ -40,7 +40,6 @@ import hudson.PluginWrapper;
 import hudson.Util;
 import hudson.init.InitMilestone;
 import hudson.init.Initializer;
-import hudson.model.AbstractProject;
 import hudson.model.Action;
 import hudson.model.Computer;
 import hudson.model.Executor;
@@ -95,6 +94,7 @@ import jenkins.metrics.api.QueueItemMetricsEvent;
 import jenkins.metrics.api.QueueItemMetricsListener;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.model.Jenkins;
+import jenkins.model.ParameterizedJobMixIn;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.DoNotUse;
 
@@ -305,9 +305,9 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             if (i instanceof Job) {
                                 count++;
                                 depthTotal += depth;
-                                if (i instanceof AbstractProject) {
+                                if (i instanceof ParameterizedJobMixIn.ParameterizedJob) {
                                     projectCount++;
-                                    if (((AbstractProject) i).isDisabled()) {
+                                    if (((ParameterizedJobMixIn.ParameterizedJob) i).isDisabled()) {
                                         disabledProjects++;
                                     }
                                 }
