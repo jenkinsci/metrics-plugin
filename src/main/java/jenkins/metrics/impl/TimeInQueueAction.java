@@ -161,10 +161,11 @@ public class TimeInQueueAction implements Serializable, RunAction2 {
     }
 
      /**
-     * Returns the total time this {@link Run} spent queuing, including the time spent by subtasks. This is the sum
-     * of {@link #getQueuingDurationMillis()} plus all the {@link SubTaskTimeInQueueAction#getQueuingDurationMillis()}.
+     * Returns the a map of all the subtasks in this {@link Run} mapped to the time spent by each {@link SubTask} in queue.
+     * Subtasks are denoted in the map by chronological order and the subtask time in queue is denoted using
+     * {@link SubTaskTimeInQueueAction#getQueuingDurationMillis()}
      *
-     * @return the total time this {@link Run} spent queuing
+     * @return a map where each {@link SubTask} in this {@link Run} is mapped to each subtask's time in queue
      */
     @Exported(visibility = 2)
     public Map<String, Long> getSubTaskMap() {
