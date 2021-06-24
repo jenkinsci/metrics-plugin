@@ -30,6 +30,8 @@ import hudson.model.Run;
 import hudson.model.queue.SubTask;
 import java.io.Serializable;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import jenkins.model.RunAction2;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.DoNotUse;
@@ -156,6 +158,27 @@ public class TimeInQueueAction implements Serializable, RunAction2 {
             total += t.getQueuingDurationMillis();
         }
         return total;
+    }
+
+     /**
+     * Returns the total time this {@link Run} spent queuing, including the time spent by subtasks. This is the sum
+     * of {@link #getQueuingDurationMillis()} plus all the {@link SubTaskTimeInQueueAction#getQueuingDurationMillis()}.
+     *
+     * @return the total time this {@link Run} spent queuing
+     */
+    @Exported(visibility = 2)
+    public Map<String, Long> getSubTaskMap() {
+
+        Map<String, Long> subtasks = new HashMap<String, Long>();
+        if (run == null) {
+            return subtasks;
+        }
+        int subtask_count = 0;
+        for (SubTaskTimeInQueueAction t : run.getActions(SubTaskTimeInQueueAction.class)) {
+            subtasks.put("Subtask_" + subtask_count, t.getQueuingDurationMillis());
+            subtask_count = subtask_count + 1;
+        }
+        return subtasks;
     }
 
     /**
