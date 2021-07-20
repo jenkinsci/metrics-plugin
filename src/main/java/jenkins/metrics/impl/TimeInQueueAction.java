@@ -168,7 +168,7 @@ public class TimeInQueueAction implements Serializable, RunAction2 {
      * @return a map where each {@link SubTask} in this {@link Run} is mapped to each subtask's time in queue
      */
     @Exported(visibility = 2)
-    public Map<String, Long> getSubTaskMap() {
+    public Map<String, Long> getSubTaskQueuingDurations() {
 
         Map<String, Long> subtasks = new HashMap<String, Long>();
         if (run == null) {
