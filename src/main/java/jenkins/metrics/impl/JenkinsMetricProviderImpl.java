@@ -958,12 +958,13 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         }
 
         @Override
-        public void taskStarted(Executor executor, Queue.Task task, Queue.Executable executable) {
+        public void taskStarted(Executor executor, Queue.Task task) {
             Node node = executor.getOwner().getNode();
             List<Set<LabelAtom>> consumedLabelAtoms = node != null ? Collections.singletonList(node.getAssignedLabels()) : Collections.emptyList();
             WorkUnitContext wuc = executor.getCurrentWorkUnit().context;
             Queue.BuildableItem item = wuc.item;
             ItemTotals t = totals.getOrDefault(item.getId(), ItemTotals.EMPTY);
+            Queue.Executable executable = executor.getCurrentExecutable();
             QueueItemMetricsListener.notifyStarted(new QueueItemMetricsEvent(
                     item,
                     item.getAssignedLabel(),
