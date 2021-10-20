@@ -931,7 +931,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                     li,
                                     assignedLabel,
                                     QueueItemMetricsEvent.State.STARTED,
-                                    RunResolver.resolve(executable).orElse(null),
+                                    resolveRun(executable).orElse(null),
                                     executable,
                                     consumedLabelAtoms,
                                     queuingDurationMillis,
@@ -948,7 +948,7 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                                         // the run resolver may only work *after* the executable finished
                                         // as it may rely on state that gets inferred during the start
                                         // thus we re-resolve after the executable finished
-                                        Optional<Run<?, ?>> run = RunResolver.resolve(executable);
+                                        Optional<Run<?, ?>> run = resolveRun(executable);
                                         if (subTask) {
                                             run.ifPresent(r -> r.addAction(new SubTaskTimeInQueueAction(
                                                     queuingDurationMillis,
@@ -1000,6 +1000,24 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             }
             totals.remove(li.getId());
             trim();
+        }
+
+        /**
+         * Resolves a {@link Queue.Executable} into the {@link Run} that it belongs to.
+         *
+         * @param executable the executable.
+         * @return the run (may be {@link Optional#empty()}.
+         */
+        @NonNull
+        private static Optional<Run<?, ?>> resolveRun(@NonNull Queue.Executable executable) {
+            if (executable instanceof Run) {
+                return Optional.of((Run<?, ?>) executable);
+            }
+            Queue.Executable parent = executable.getParentExecutable();
+            if (parent != null) {
+                return resolveRun(parent);
+            }
+            return Optional.empty();
         }
 
         private void checkEnterQueue(Queue.Item i) {

@@ -29,7 +29,8 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.19</version>
+    <version>4.29</version>
+    <relativePath />
   </parent>
 
   <artifactId>metrics</artifactId>
@@ -65,7 +66,7 @@
 
   <properties>
     <java.level>8</java.level>
-    <jenkins.version>2.222.1</jenkins.version>
+    <jenkins.version>2.313</jenkins.version>
     <metrics.version>4.1.6</metrics.version>
     <revision>4.0.2.9</revision>
     <changelist>-SNAPSHOT</changelist>
@@ -88,8 +89,8 @@
     <dependencies>
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
-        <artifactId>bom-2.222.x</artifactId>
-        <version>9</version>
+        <artifactId>bom-2.303.x</artifactId>
+        <version>966.v3857b7c82032</version>
         <scope>import</scope>
         <type>pom</type>
       </dependency>
@@ -183,11 +184,6 @@
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>variant</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.jenkins-ci.plugins.workflow</groupId>
-      <artifactId>workflow-durable-task-step</artifactId>
-      <optional>true</optional>
     </dependency>
     <!-- jenkins dependencies -->
     <!-- test dependencies -->
