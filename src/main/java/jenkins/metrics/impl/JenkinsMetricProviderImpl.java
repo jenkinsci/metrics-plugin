@@ -961,10 +961,17 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         public void taskStarted(Executor executor, Queue.Task task) {
             Node node = executor.getOwner().getNode();
             List<Set<LabelAtom>> consumedLabelAtoms = node != null ? Collections.singletonList(node.getAssignedLabels()) : Collections.emptyList();
-            WorkUnitContext wuc = executor.getCurrentWorkUnit().context;
+            WorkUnit wu = executor.getCurrentWorkUnit();
+            if (wu == null) { // Impossible?
+                return;
+            }
+            WorkUnitContext wuc = wu.context;
             Queue.BuildableItem item = wuc.item;
             ItemTotals t = totals.getOrDefault(item.getId(), ItemTotals.EMPTY);
             Queue.Executable executable = executor.getCurrentExecutable();
+            if (executable == null) {
+                return;
+            }
             QueueItemMetricsListener.notifyStarted(new QueueItemMetricsEvent(
                     item,
                     item.getAssignedLabel(),
@@ -984,14 +991,21 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
         @Override
         public void taskCompleted(Executor executor, Queue.Task task, long durationMS) {
             Queue.Executable executable = executor.getCurrentExecutable();
+            if (executable == null) {
+                return;
+            }
             Optional<Run<?, ?>> run = resolveRun(executable);
-            WorkUnitContext wuc = executor.getCurrentWorkUnit().context;
+            WorkUnit wu = executor.getCurrentWorkUnit();
+            if (wu == null) {
+                return;
+            }
+            WorkUnitContext wuc = wu.context;
             Queue.BuildableItem item = wuc.item;
             ItemTotals t = totals.getOrDefault(item.getId(), ItemTotals.EMPTY);
             long executionDurationMillis = executor.getElapsedTime(); // i.e., now - startTime
             long startTime = System.currentTimeMillis() - executionDurationMillis;
             long queuingDurationMillis = startTime - item.getInQueueSince();
-            if (!executor.getCurrentWorkUnit().isMainWork()) {
+            if (!wu.isMainWork()) {
                 run.ifPresent(r -> r.addAction(new SubTaskTimeInQueueAction(
                         queuingDurationMillis,
                         TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
