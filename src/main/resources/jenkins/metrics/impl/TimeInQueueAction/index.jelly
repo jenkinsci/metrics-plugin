@@ -27,7 +27,7 @@
   <l:layout title="${it.run.displayName} ${it.displayName}">
     <st:include it="${it.run}" page="sidepanel.jelly"/>
     <l:main-panel>
-      <h1><l:icon src="${resURL}/plugin/metrics/images/48x48/clock.png"/><st:nbsp/>${%Timings}</h1>
+      <h1><l:icon src="${resURL}/plugin/metrics/images/clock.svg"/><st:nbsp/>${%Timings}</h1>
       <table class="bigtable pane">
         <thead>
           <tr>
