@@ -23,23 +23,21 @@
  -->
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form" xmlns:l="/lib/layout" xmlns:st="jelly:stapler">
-  <f:entry title="${%Key}" field="key">
-    <input class="setting-input metrics-access-key"
-           name="_.key"
-           value="${instance.key}"
-           type="text"
-           placeholder="${%Will be generated on save or click Generate to generate now}"
-           readonly="true" style="width: 80ex;"
-           onclick="this.select();"/>
-    <input type="button" value="${%Generate}..." onclick="(function(){
-    var src = event.target || event.srcElement;
-    var fld = findPreviousFormItem(src,'key');
-                var text = '';
-                var possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
-                for( var i=0; i &lt; 64; i++ )
-                    text += possible.charAt(Math.floor(Math.random() * possible.length));
-        fld.value = text;
-    })(this); return false;" class="submit-button"/>
+  <f:invisibleEntry>
+    <f:password name="key" field="key"/>
+  </f:invisibleEntry>
+  <f:entry title="${%Key}">
+    <div>
+      <span class="metrics-access-key-new-token-value"><!-- For javascript --></span>
+      <div class="warning metrics-access-key-display-after-generation">${%TokenDisplayedOnce}</div>
+    </div>
+    <span class="yui-button">
+      <button type="button" tabindex="0" data-target-url="${descriptor.descriptorFullUrl}/generateNewToken"
+              onclick="saveApiToken(this)">
+        ${%GenerateNewToken}
+      </button>
+    </span>
+    <l:copyButton message="${%NewTokenValueCopied}" clazz="metrics-access-key-copy invisible" tooltip="${%CopyToken}"/>
   </f:entry>
   <f:entry title="${%Description}" field="description">
     <f:textbox/>

@@ -1,0 +1,14 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<jenkins.metrics.api.MetricsAccessKey_-DescriptorImpl plugin="metrics@4.0.2.8">
+  <accessKeys>
+    <jenkins.metrics.api.MetricsAccessKey>
+      <key>hello</key>
+      <description>frt</description>
+      <canPing>true</canPing>
+      <canThreadDump>true</canThreadDump>
+      <canHealthCheck>false</canHealthCheck>
+      <canMetrics>true</canMetrics>
+      <origins>*</origins>
+    </jenkins.metrics.api.MetricsAccessKey>
+  </accessKeys>
+</jenkins.metrics.api.MetricsAccessKey_-DescriptorImpl>
