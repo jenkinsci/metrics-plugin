@@ -33,7 +33,7 @@
   </parent>
 
   <artifactId>metrics</artifactId>
-  <version>${revision}${changelist}</version>
+  <version>4.0.2.7.1</version>
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
@@ -60,7 +60,7 @@
     <connection>scm:git:git://github.com/jenkinsci/metrics-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/metrics-plugin.git</developerConnection>
     <url>http://github.com/jenkinsci/metrics-plugin</url>
-    <tag>${scmTag}</tag>
+    <tag>metrics-4.0.2.7.1</tag>
   </scm>
 
   <properties>
