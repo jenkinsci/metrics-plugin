@@ -1,6 +1,7 @@
 package jenkins.metrics;
 
 import hudson.ExtensionList;
+import hudson.util.Secret;
 import io.jenkins.plugins.casc.misc.RoundTripAbstractTest;
 import jenkins.metrics.api.MetricsAccessKey;
 import org.jvnet.hudson.test.RestartableJenkinsRule;
@@ -24,7 +25,7 @@ public class RoundTripJCascMetricsTest extends RoundTripAbstractTest {
 
         MetricsAccessKey accessKey = accessKeys.get(0);
 
-        assertEquals("tDdG5Vsv-2-WDdHfI3QFPiU9-hcvKmWd2HL4CfVIFvUumQzz3qf6c0qt_HU4_lUh", accessKey.getKey());
+        assertEquals("tDdG5Vsv-2-WDdHfI3QFPiU9-hcvKmWd2HL4CfVIFvUumQzz3qf6c0qt_HU4_lUh", Secret.toString(accessKey.getKey()));
         assertEquals("JCasC key", accessKey.getDescription());
         assertFalse(accessKey.isCanPing());
         assertTrue(accessKey.isCanThreadDump());
@@ -35,6 +36,6 @@ public class RoundTripJCascMetricsTest extends RoundTripAbstractTest {
 
     @Override
     public String stringInLogExpected() {
-        return "MetricsAccessKey.key = tDdG5Vsv-2-WDdHfI3QFPiU9-hcvKmWd2HL4CfVIFvUumQzz3qf6c0qt_HU4_lUh";
+        return "MetricsAccessKey.key = ****";
     }
 }

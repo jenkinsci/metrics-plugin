@@ -30,9 +30,14 @@ import hudson.Extension;
 import hudson.ExtensionList;
 import hudson.ExtensionPoint;
 import hudson.Util;
+import hudson.XmlFile;
 import hudson.model.AbstractDescribableImpl;
 import hudson.model.Descriptor;
+import hudson.util.HttpResponses;
+import hudson.util.Secret;
+import hudson.util.VersionNumber;
 import jenkins.model.Jenkins;
+import jenkins.util.Timer;
 import net.sf.json.JSONObject;
 import org.acegisecurity.AccessDeniedException;
 import org.apache.commons.lang.StringUtils;
@@ -41,26 +46,46 @@ import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.interceptor.RequirePOST;
+import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
+import org.xml.sax.Locator;
+import org.xml.sax.SAXException;
+import org.xml.sax.ext.Locator2;
+import org.xml.sax.helpers.DefaultHandler;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.servlet.ServletException;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.parsers.SAXParserFactory;
+import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectStreamException;
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * @author Stephen Connolly
  */
 public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> implements Serializable {
     private static final long serialVersionUID = 1L;
+    @Deprecated
+    private transient String key;
     @NonNull
-    private final String key;
+    private Secret secretKey;
     @CheckForNull
     private final String description;
     private final boolean canPing;
@@ -75,15 +100,20 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     private transient String[] originRegexs = null;
 
     public MetricsAccessKey(String description, String key) {
-        this(description, key, true, false, false, true, null);
+        this(description, Secret.fromString(key), true, false, false, true, null);
+    }
+
+    @Deprecated
+    public MetricsAccessKey(String description, String key, boolean canPing, boolean canThreadDump,
+                            boolean canHealthCheck, boolean canMetrics, String origins) {
+        this(description, Secret.fromString(key), canPing, canThreadDump, canHealthCheck, canMetrics, origins);
     }
 
     @DataBoundConstructor
-    public MetricsAccessKey(String description, String key, boolean canPing, boolean canThreadDump,
+    public MetricsAccessKey(String description, Secret key, boolean canPing, boolean canThreadDump,
                             boolean canHealthCheck, boolean canMetrics, String origins) {
         this.description = Util.fixEmptyAndTrim(description);
-        key = Util.fixEmptyAndTrim(key);
-        this.key = key == null ? DescriptorImpl.generateKey() : key;
+        this.secretKey = key;
         this.canPing = canPing;
         this.canThreadDump = canThreadDump;
         this.canHealthCheck = canHealthCheck;
@@ -177,8 +207,8 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     }
 
     @NonNull
-    public String getKey() {
-        return key;
+    public Secret getKey() {
+        return secretKey;
     }
 
     public boolean isCanPing() {
@@ -271,7 +301,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         if (description != null ? !description.equals(that.description) : that.description != null) {
             return false;
         }
-        if (!key.equals(that.key)) {
+        if (!secretKey.equals(that.secretKey)) {
             return false;
         }
         if (origins != null ? !origins.equals(that.origins) : that.origins != null) {
@@ -286,7 +316,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
      */
     @Override
     public int hashCode() {
-        return key.hashCode();
+        return secretKey.hashCode();
     }
 
     /**
@@ -295,7 +325,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("MetricsAccessKey{");
-        sb.append("key='").append(key).append('\'');
+        sb.append("key='").append(StringUtils.isNotEmpty(Secret.toString(secretKey)) ? "****" : "NULL").append('\'');
         sb.append(", description='").append(description).append('\'');
         sb.append(", canPing=").append(canPing);
         sb.append(", canHealthCheck=").append(canHealthCheck);
@@ -304,6 +334,22 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         sb.append(", origins='").append(origins).append('\'');
         sb.append('}');
         return sb.toString();
+    }
+
+    /**
+     * Called when object has been deserialized from a stream.
+     *
+     * @return {@code this}, or a replacement for {@code this}.
+     * @throws ObjectStreamException if the object cannot be restored.
+     * @see <a href="http://download.oracle.com/javase/1.3/docs/guide/serialization/spec/input.doc6.html">The Java Object Serialization Specification</a>
+     */
+    private Object readResolve() throws ObjectStreamException {
+        if (StringUtils.isNotEmpty(this.key)) {
+            this.secretKey = Secret.fromString(this.key);
+            this.key = null;
+            DescriptorImpl.keyConverted = true;
+        }
+        return this;
     }
 
     /**
@@ -330,19 +376,37 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         private static final SecureRandom entropy = new SecureRandom();
         private static final char[] keyChars =
                 "ABCEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_".toCharArray();
+        /**
+         * Used by {@link #readResolve()} to indicate that a key has been converted from String to {@link Secret}.
+         */
+        private static boolean keyConverted = false;
         @GuardedBy("this")
         private List<MetricsAccessKey> accessKeys;
         private transient volatile Set<String> accessKeySet;
 
         public DescriptorImpl() {
             super();
+            keyIsNotConverted();
             load();
+            if (keyConverted) {
+                Logger.getLogger(MetricsAccessKey.class.getName()).info("Saving encrypted Metrics access key(s)");
+                Timer.get().submit(this::save);
+            }
+        }
+
+        /*package for testing*/ static boolean isKeyConverted() {
+            return keyConverted;
+        }
+
+        private static void keyIsNotConverted() {
+            keyConverted = false;
         }
 
         @NonNull
         public static String generateKey() {
-            StringBuilder b = new StringBuilder(64);
-            for (int i = 0; i < 64; i++) {
+            final int keyLength = 64;
+            StringBuilder b = new StringBuilder(keyLength);
+            for (int i = 0; i < keyLength; i++) {
                 b.append(keyChars[entropy.nextInt(keyChars.length)]);
             }
             return b.toString();
@@ -350,7 +414,13 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
 
         @Override
         public synchronized boolean configure(StaplerRequest req, JSONObject json) throws FormException {
-            accessKeys = req.bindJSONToList(MetricsAccessKey.class, json.get("accessKeys"));
+            final List<MetricsAccessKey> keys = req.bindJSONToList(MetricsAccessKey.class, json.get("accessKeys"));
+            for (MetricsAccessKey accessKey : keys) {
+                if (accessKey.getKey().getPlainText().isEmpty()) {
+                    throw new FormException("Metrics access key cannot be empty. Make sure to generate it.", "accessKeys.key");
+                }
+            }
+            this.accessKeys = keys;
             accessKeySet = null;
             save();
             return true;
@@ -366,29 +436,16 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         public void checkAccessKey(@CheckForNull String accessKey) {
             Set<String> accessKeySet = this.accessKeySet;
             if (accessKeySet == null) {
-                accessKeySet = new HashSet<String>();
-                    for (Provider p : ExtensionList.lookup(Provider.class)) {
-                        for (MetricsAccessKey k : p.getAccessKeys()) {
-                            accessKeySet.add(k.getKey());
-                        }
-                    }
-                synchronized (this) {
-                    if (accessKeys != null) {
-                        for (MetricsAccessKey k : accessKeys) {
-                            accessKeySet.add(k.getKey());
-                        }
-                    }
-                    this.accessKeySet = accessKeySet; // will be idempotent
-                }
+                reindexAccessKeys();
             }
-            if (!accessKeySet.contains(accessKey)) {
+            if (accessKeySet != null && !accessKeySet.contains(accessKey)) {
                 // slow check
-                    for (Provider p : ExtensionList.lookup(Provider.class)) {
-                        if (((!(p instanceof AbstractProvider) || ((AbstractProvider) p).isMayHaveOnDemandKeys())
-                                && p.getAccessKey(accessKey) != null)) {
-                            return;
-                        }
+                for (Provider p : ExtensionList.lookup(Provider.class)) {
+                    if (((!(p instanceof AbstractProvider) || ((AbstractProvider) p).isMayHaveOnDemandKeys())
+                            && p.getAccessKey(accessKey) != null)) {
+                        return;
                     }
+                }
                 throw new AccessDeniedException(Messages.MetricsAccessKey_invalidAccessKey(accessKey));
             }
         }
@@ -450,7 +507,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             }
             synchronized (this) {
                 for (MetricsAccessKey k : accessKeys) {
-                    if (StringUtils.equals(accessKey, k.getKey())) {
+                    if (StringUtils.equals(accessKey, Secret.toString(k.getKey()))) {
                         return k;
                     }
                 }
@@ -458,6 +515,14 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
             return null;
         }
 
+        @RequirePOST
+        public HttpResponse doGenerateNewToken() {
+            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+
+            Map<String, Object> data = new HashMap<>();
+            data.put("tokenValue", DescriptorImpl.generateKey());
+            return HttpResponses.okJSON(data);
+        }
 
         /**
          *
@@ -496,16 +561,16 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         }
 
         public void reindexAccessKeys() {
-            Set<String> accessKeySet = new HashSet<String>();
+            Set<String> accessKeySet = new HashSet<>();
             for (Provider p : ExtensionList.lookup(Provider.class)) {
                 for (MetricsAccessKey k : p.getAccessKeys()) {
-                    accessKeySet.add(k.getKey());
+                    accessKeySet.add(Secret.toString(k.getKey()));
                 }
             }
             synchronized (this) {
                 if (accessKeys != null) {
                     for (MetricsAccessKey k : accessKeys) {
-                        accessKeySet.add(k.getKey());
+                        accessKeySet.add(Secret.toString(k.getKey()));
                     }
                 }
                 this.accessKeySet = accessKeySet;
@@ -558,7 +623,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         @CheckForNull
         public MetricsAccessKey getAccessKey(String accessKey) {
             for (MetricsAccessKey k : getAccessKeys()) {
-                if (StringUtils.equals(accessKey, k.getKey())) {
+                if (StringUtils.equals(accessKey, Secret.toString(k.getKey()))) {
                     return k;
                 }
             }
