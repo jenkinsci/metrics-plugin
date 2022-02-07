@@ -29,7 +29,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.19</version>
+    <version>4.33</version>
   </parent>
 
   <artifactId>metrics</artifactId>
@@ -219,7 +219,7 @@
       <plugin>
         <groupId>com.infradna.tool</groupId>
         <artifactId>bridge-method-injector</artifactId>
-        <version>1.21</version>
+        <version>1.23</version>
         <executions>
           <execution>
             <goals>
