@@ -200,7 +200,7 @@ public class Metrics extends Plugin {
      */
     @NonNull
     public static MetricRegistry metricRegistry() {
-        Metrics plugin = Jenkins.getInstance().getPlugin(Metrics.class);
+        Metrics plugin = Jenkins.get().getPlugin(Metrics.class);
         if (plugin == null || plugin.metricRegistry == null) {
             throw new AssertionError(Metrics.class.getName() + " is missing its MetricRegistry");
         }
@@ -209,7 +209,7 @@ public class Metrics extends Plugin {
 
     private static MetricsAccessKey.DescriptorImpl accessKeyDescriptorOrDie() {
         MetricsAccessKey.DescriptorImpl descriptor =
-                Jenkins.getInstance().getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
+                Jenkins.get().getDescriptorByType(MetricsAccessKey.DescriptorImpl.class);
         if (descriptor == null) {
             throw new IllegalStateException();
         }
@@ -296,7 +296,7 @@ public class Metrics extends Plugin {
     @Initializer(after = InitMilestone.EXTENSIONS_AUGMENTED, before = InitMilestone.JOB_LOADED)
     public static void afterExtensionsAugmented() {
         LOGGER.log(Level.FINER, "Registering metric provider and health check provider extensions...");
-        Jenkins jenkins = Jenkins.getInstance();
+        Jenkins jenkins = Jenkins.get();
         Metrics plugin = jenkins.getPlugin(Metrics.class);
         if (plugin == null) {
             LOGGER.log(Level.WARNING, "Could not register metrics providers or health check providers as "
