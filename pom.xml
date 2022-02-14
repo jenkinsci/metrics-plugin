@@ -34,7 +34,7 @@
   </parent>
 
   <artifactId>metrics</artifactId>
-  <version>4.1.6.1</version>
+  <version>${revision}${changelist}</version>
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
@@ -61,14 +61,14 @@
     <connection>scm:git:git://github.com/jenkinsci/metrics-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/metrics-plugin.git</developerConnection>
     <url>http://github.com/jenkinsci/metrics-plugin</url>
-    <tag>metrics-4.1.6.1</tag>
+    <tag>${scmTag}</tag>
   </scm>
 
   <properties>
     <java.level>8</java.level>
     <jenkins.version>2.319.1</jenkins.version>
     <metrics.version>4.1.6</metrics.version>
-    <revision>4.1.6.1</revision>
+    <revision>4.1.6.2</revision>
     <changelist>-SNAPSHOT</changelist>
   </properties>
 
