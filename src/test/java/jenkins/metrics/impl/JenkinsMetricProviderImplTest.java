@@ -111,6 +111,8 @@ public class JenkinsMetricProviderImplTest {
         List<QueueItemMetricsEvent> events = listener.getEvents();
         assertThat(events.size(), is(3));
         Collections.sort(events, QueueItemMetricsEvent::compareEventSequence);
+        events.forEach(System.err::println);
+
         assertThat(events.get(0).getState(), is(QueueItemMetricsEvent.State.QUEUED));
         assertThat(events.get(0).getRun(), is(Optional.empty()));
         assertThat(events.get(0).getExecutable(), is(Optional.empty()));
