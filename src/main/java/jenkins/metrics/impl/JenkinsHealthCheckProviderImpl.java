@@ -81,7 +81,7 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                             if (freeSpace != null && m.getThresholdBytes() > freeSpace.size) {
                                 return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(),
                                         c.getNode() instanceof Jenkins
-                                                ? "(master)" : c.getName());
+                                                ? "(controller)" : c.getName());
                             }
                         }
                         return Result.healthy();
@@ -100,7 +100,7 @@ public class JenkinsHealthCheckProviderImpl extends HealthCheckProvider {
                             if (freeSpace != null && m.getThresholdBytes() > freeSpace.size) {
                                 return Result.unhealthy("Only %s Gb free on %s", freeSpace.getGbLeft(),
                                         c.getNode() instanceof Jenkins
-                                                ? "(master)" : c.getName());
+                                                ? "(controller)" : c.getName());
                             }
                         }
                         return Result.healthy();

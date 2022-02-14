@@ -29,7 +29,8 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.1</version>
+    <version>4.33</version>
+    <relativePath />
   </parent>
 
   <artifactId>metrics</artifactId>
@@ -65,9 +66,9 @@
 
   <properties>
     <java.level>8</java.level>
-    <jenkins.version>2.222.1</jenkins.version>
+    <jenkins.version>2.319.1</jenkins.version>
     <metrics.version>4.1.6</metrics.version>
-    <revision>4.0.2.7</revision>
+    <revision>4.0.2.9</revision>
     <changelist>-SNAPSHOT</changelist>
   </properties>
 
@@ -88,15 +89,10 @@
     <dependencies>
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
-        <artifactId>bom-2.222.x</artifactId>
-        <version>9</version>
+        <artifactId>bom-2.319.x</artifactId>
+        <version>1036.v9f5a1aba8fab</version>
         <scope>import</scope>
         <type>pom</type>
-      </dependency>
-      <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-api</artifactId>
-        <version>1.7.30</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -106,32 +102,72 @@
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-core</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-servlet</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-healthchecks</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-jvm</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-jmx</artifactId>
       <version>${metrics.version}</version>
+      <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-json</artifactId>
       <version>${metrics.version}</version>
       <exclusions>
+        <exclusion>
+          <!-- The version from Jenkins core takes precedence at runtime. -->
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-api</artifactId>
+        </exclusion>
         <exclusion>
           <!-- use the version supplied by jackson2-api -->
           <groupId>com.fasterxml.jackson.core</groupId>
@@ -143,30 +179,13 @@
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>jackson2-api</artifactId>
-      <version>2.10.2</version>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>variant</artifactId>
     </dependency>
-    <dependency>
-      <groupId>org.jenkins-ci.plugins.workflow</groupId>
-      <artifactId>workflow-durable-task-step</artifactId>
-      <optional>true</optional>
-    </dependency>
     <!-- jenkins dependencies -->
     <!-- test dependencies -->
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.hamcrest</groupId>
-      <artifactId>hamcrest-core</artifactId>
-      <version>2.2</version>
-      <scope>test</scope>
-    </dependency>
     <dependency>
       <groupId>io.jenkins</groupId>
       <artifactId>configuration-as-code</artifactId>
@@ -184,7 +203,7 @@
       <plugin>
         <groupId>com.infradna.tool</groupId>
         <artifactId>bridge-method-injector</artifactId>
-        <version>1.18</version>
+        <version>1.23</version>
         <executions>
           <execution>
             <goals>
