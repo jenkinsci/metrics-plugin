@@ -280,6 +280,8 @@ public class Metrics extends Plugin {
         PluginServletFilter.addFilter(filter);
         jmxReporter = JmxReporter
                 .forRegistry(metricRegistry)
+                .convertRatesTo(MetricsRootAction.RATE_UNIT)
+                .convertDurationsTo(MetricsRootAction.DURATION_UNIT)
                 .inDomain(JMX_DOMAIN)
                 .createsObjectNamesWith(new ObjectNameFactoryImpl())
                 .filter((name, metric) -> !JMX_EXCLUSIONS.matcher(name).matches())
