@@ -1,0 +1,4 @@
+<?jelly escape-by-default='true'?>
+<div>
+    This plugin exposes the Metrics API to Jenkins plugins.
+</div>

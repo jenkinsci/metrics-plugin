@@ -29,7 +29,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.33</version>
+    <version>4.40</version>
     <relativePath />
   </parent>
 
@@ -38,9 +38,6 @@
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
-  <description>
-    This plugin exposes the Metrics API to Jenkins plugins.
-  </description>
   <url>https://github.com/jenkinsci/metrics-plugin</url>
   <licenses>
     <license>
@@ -58,15 +55,14 @@
   </developers>
 
   <scm>
-    <connection>scm:git:git://github.com/jenkinsci/metrics-plugin.git</connection>
+    <connection>scm:git:https://github.com/jenkinsci/metrics-plugin.git</connection>
     <developerConnection>scm:git:git@github.com:jenkinsci/metrics-plugin.git</developerConnection>
-    <url>http://github.com/jenkinsci/metrics-plugin</url>
+    <url>https://github.com/jenkinsci/metrics-plugin</url>
     <tag>${scmTag}</tag>
   </scm>
 
   <properties>
-    <java.level>8</java.level>
-    <jenkins.version>2.319.1</jenkins.version>
+    <jenkins.version>2.332.1</jenkins.version>
     <metrics.version>4.1.6</metrics.version>
     <revision>4.1.6.2</revision>
     <changelist>-SNAPSHOT</changelist>
@@ -89,8 +85,8 @@
     <dependencies>
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
-        <artifactId>bom-2.319.x</artifactId>
-        <version>1036.v9f5a1aba8fab</version>
+        <artifactId>bom-2.332.x</artifactId>
+        <version>1246.va_b_50630c1d19</version>
         <scope>import</scope>
         <type>pom</type>
       </dependency>
