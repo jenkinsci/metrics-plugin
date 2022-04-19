@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
  ~ The MIT License
  ~
@@ -11,7 +11,7 @@
  ~ copies of the Software, and to permit persons to whom the Software is
  ~ furnished to do so, subject to the following conditions:
  ~
- ~ The above copyright notice and this permission notice shall be included in
+ ~ The above copyright notice and this permission https://github.com/jenkinsci/metrics-plugin/pull/150/conflictsnotice shall be included in
  ~ all copies or substantial portions of the Software.
  ~
  ~ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
@@ -38,7 +38,7 @@
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
-  <url>https://github.com/jenkinsci/metrics-plugin</url>
+  <url>https://github.com/jenkinsci/${project.artifactId}-plugin</url>
   <licenses>
     <license>
       <name>The MIT license</name>
@@ -55,9 +55,9 @@
   </developers>
 
   <scm>
-    <connection>scm:git:https://github.com/jenkinsci/metrics-plugin.git</connection>
-    <developerConnection>scm:git:git@github.com:jenkinsci/metrics-plugin.git</developerConnection>
-    <url>https://github.com/jenkinsci/metrics-plugin</url>
+    <connection>scm:git:https://github.com/${gitHubRepo}.git</connection>
+    <developerConnection>scm:git:git@github.com:${gitHubRepo}.git</developerConnection>
+    <url>https://github.com/${gitHubRepo}</url>
     <tag>${scmTag}</tag>
   </scm>
 
@@ -66,6 +66,7 @@
     <metrics.version>4.1.6</metrics.version>
     <revision>4.1.6.2</revision>
     <changelist>-SNAPSHOT</changelist>
+    <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
   </properties>
 
   <repositories>
@@ -84,7 +85,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>io.jenkins.tools.bom</groupId>
+        <groupId>io.jenkins.tools.bom</groupId
         <artifactId>bom-2.332.x</artifactId>
         <version>1246.va_b_50630c1d19</version>
         <scope>import</scope>
