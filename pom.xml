@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
  ~ The MIT License
  ~
@@ -29,7 +29,8 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.19</version>
+    <version>4.40</version>
+    <relativePath />
   </parent>
 
   <artifactId>metrics</artifactId>
@@ -37,10 +38,7 @@
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
-  <description>
-    This plugin exposes the Metrics API to Jenkins plugins.
-  </description>
-  <url>https://github.com/jenkinsci/metrics-plugin</url>
+  <url>https://github.com/jenkinsci/${project.artifactId}-plugin</url>
   <licenses>
     <license>
       <name>The MIT license</name>
@@ -57,18 +55,18 @@
   </developers>
 
   <scm>
-    <connection>scm:git:git://github.com/jenkinsci/metrics-plugin.git</connection>
-    <developerConnection>scm:git:git@github.com:jenkinsci/metrics-plugin.git</developerConnection>
-    <url>http://github.com/jenkinsci/metrics-plugin</url>
+    <connection>scm:git:https://github.com/${gitHubRepo}.git</connection>
+    <developerConnection>scm:git:git@github.com:${gitHubRepo}.git</developerConnection>
+    <url>https://github.com/${gitHubRepo}</url>
     <tag>${scmTag}</tag>
   </scm>
 
   <properties>
-    <java.level>8</java.level>
-    <jenkins.version>2.222.1</jenkins.version>
+    <jenkins.version>2.319.1</jenkins.version>
     <metrics.version>4.1.6</metrics.version>
-    <revision>4.0.2.9</revision>
+    <revision>4.1.6.2</revision>
     <changelist>-SNAPSHOT</changelist>
+    <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
   </properties>
 
   <repositories>
@@ -88,8 +86,8 @@
     <dependencies>
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
-        <artifactId>bom-2.222.x</artifactId>
-        <version>9</version>
+        <artifactId>bom-2.319.x</artifactId>
+        <version>1280.vd669827e38cd</version>
         <scope>import</scope>
         <type>pom</type>
       </dependency>
@@ -178,30 +176,13 @@
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>jackson2-api</artifactId>
-      <version>2.10.2</version>
     </dependency>
     <dependency>
       <groupId>org.jenkins-ci.plugins</groupId>
       <artifactId>variant</artifactId>
     </dependency>
-    <dependency>
-      <groupId>org.jenkins-ci.plugins.workflow</groupId>
-      <artifactId>workflow-durable-task-step</artifactId>
-      <optional>true</optional>
-    </dependency>
     <!-- jenkins dependencies -->
     <!-- test dependencies -->
-    <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.hamcrest</groupId>
-      <artifactId>hamcrest-core</artifactId>
-      <version>2.2</version>
-      <scope>test</scope>
-    </dependency>
     <dependency>
       <groupId>io.jenkins</groupId>
       <artifactId>configuration-as-code</artifactId>
@@ -219,7 +200,7 @@
       <plugin>
         <groupId>com.infradna.tool</groupId>
         <artifactId>bridge-method-injector</artifactId>
-        <version>1.21</version>
+        <version>1.23</version>
         <executions>
           <execution>
             <goals>
