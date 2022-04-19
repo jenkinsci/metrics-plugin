@@ -22,45 +22,46 @@
  ~ THE SOFTWARE.
  -->
 <?jelly escape-by-default='true'?>
-<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:d="jelly:define" xmlns:l="/lib/layout"
-         xmlns:t="/lib/hudson" xmlns:f="/lib/form">
+<j:jelly xmlns:j="jelly:core" xmlns:st="jelly:stapler" xmlns:l="/lib/layout">
   <l:layout title="${it.run.displayName} ${it.displayName}">
     <st:include it="${it.run}" page="sidepanel.jelly"/>
     <l:main-panel>
-      <h1><l:icon src="${resURL}/plugin/metrics/images/clock.svg"/><st:nbsp/>${%Timings}</h1>
-      <table class="bigtable pane">
+      <h1>${%Timings}</h1>
+      <table class="jenkins-table">
         <thead>
           <tr>
           <th/>
           <th/>
-          <th>${%Primary task}</th>
-          <th>${%Including subtasks}</th>
+          <th align="center">${%Primary task}</th>
+          <th align="center">${%Including subtasks}</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <th rowspan="4" align="left">${%In queue}</th>
-            <th align="left">${%Waiting}</th>
+            <td rowspan="5" align="left">${%In queue}</td>
+          </tr>
+          <tr>
+            <td align="left">${%Waiting}</td>
             <td align="center">${it.waitingDurationString}</td>
             <td align="center">${it.waitingTimeString}</td>
           </tr>
           <tr>
-            <th align="left">${%Blocked}</th>
+            <td align="left">${%Blocked}</td>
             <td align="center">${it.blockedDurationString}</td>
             <td align="center">${it.blockedTimeString}</td>
           </tr>
           <tr>
-            <th align="left">${%Buildable}</th>
+            <td align="left">${%Buildable}</td>
             <td align="center">${it.buildableDurationString}</td>
             <td align="center">${it.buildableTimeString}</td>
           </tr>
           <tr>
-            <th align="left">${%Total}</th>
+            <td align="left">${%Total}</td>
             <td align="center">${it.queuingDurationString}</td>
             <td align="center">${it.queuingTimeString}</td>
           </tr>
           <tr>
-            <th colspan="2" align="left">${%Building}</th>
+            <td colspan="2" align="left">${%Building}</td>
             <j:choose>
             <j:when test="${it.buildingDurationMillis>0}">
             <td align="center">${it.buildingDurationString}</td>
@@ -73,7 +74,7 @@
             </j:choose>
           </tr>
           <tr>
-            <th colspan="2" align="left">${%Scheduled to completion}</th>
+            <td colspan="2" align="left">${%Scheduled to completion}</td>
             <j:choose>
             <j:when test="${it.buildingDurationMillis>0}">
             <td colspan="2" align="center">${it.totalDurationString}</td>
@@ -84,11 +85,11 @@
             </j:choose>
           </tr>
           <tr>
-            <th colspan="2" align="left">${%Number of subtasks}</th>
+            <td colspan="2" align="left">${%Number of subtasks}</td>
             <td colspan="2" align="center">${it.subTaskCount}</td>
           </tr>
           <tr>
-            <th colspan="2" align="left">${%Average executor utilization}</th>
+            <td colspan="2" align="left">${%Average executor utilization}</td>
             <td colspan="2" align="center">${%utilization(it.executorUtilization)}</td>
           </tr>
         </tbody>
