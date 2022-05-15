@@ -346,7 +346,7 @@ public class TimeInQueueAction implements Serializable, RunAction2 {
      */
     @Override
     public String getIconFileName() {
-        return "/plugin/metrics/images/clock.svg";
+        return "symbol-clock plugin-metrics";
     }
 
     /**
