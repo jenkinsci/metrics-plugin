@@ -62,7 +62,7 @@
   </scm>
 
   <properties>
-    <jenkins.version>2.332.1</jenkins.version>
+    <jenkins.version>2.347</jenkins.version>
     <metrics.version>4.1.6</metrics.version>
     <revision>4.1.6.3</revision>
     <changelist>-SNAPSHOT</changelist>
@@ -86,8 +86,8 @@
     <dependencies>
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
-        <artifactId>bom-2.332.x</artifactId>
-        <version>1280.vd669827e38cd</version>
+        <artifactId>bom-weekly</artifactId>
+        <version>1382.v7d694476f340</version>
         <scope>import</scope>
         <type>pom</type>
       </dependency>

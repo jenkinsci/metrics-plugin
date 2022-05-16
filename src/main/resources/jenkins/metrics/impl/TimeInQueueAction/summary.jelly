@@ -22,7 +22,7 @@
  ~ THE SOFTWARE.
  -->
 <?jelly escape-by-default='true'?>
-<j:jelly xmlns:j="jelly:core" xmlns:t="/lib/hudson" >
+<j:jelly xmlns:j="jelly:core" xmlns:t="/lib/hudson">
   <t:summary icon="symbol-clock plugin-metrics" href="${it.urlName}" iconOnly="true">
     <j:choose>
       <j:when test="${it.buildingDurationMillis>0}">
