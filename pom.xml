@@ -62,7 +62,7 @@
   </scm>
 
   <properties>
-    <jenkins.version>2.347</jenkins.version>
+    <jenkins.version>2.346</jenkins.version>
     <metrics.version>4.1.6</metrics.version>
     <revision>4.1.6.3</revision>
     <changelist>-SNAPSHOT</changelist>
