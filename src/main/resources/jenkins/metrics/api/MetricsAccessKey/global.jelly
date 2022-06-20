@@ -24,8 +24,9 @@
 <?jelly escape-by-default='true'?>
 <j:jelly xmlns:j="jelly:core" xmlns:f="/lib/form" xmlns:l="/lib/layout" xmlns:st="jelly:stapler">
   <f:section title="${%Metrics}">
-    <f:entry title="${%Access keys}" field="accessKeys">
-      <f:repeatableProperty field="accessKeys"/>
+    <st:adjunct includes="jenkins.metrics.api.MetricsAccessKey.resource"/>
+    <f:entry title="${%Access keys}" field="accessKeys" clazz="metrics-access-keys">
+      <f:repeatableProperty field="accessKeys" add="${%Add new access key}" />
     </f:entry>
     <f:entry title="${%Collect per computer metrics}" field="doPerComputerMetrics">
       <f:checkbox/>

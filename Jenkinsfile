@@ -14,7 +14,6 @@ podTemplate(
                     ttyEnabled: true),
     ]
 ) {
-    properties([buildDiscarder(logRotator(daysToKeepStr: '30', numToKeepStr: '20'))])
     node(label) {
         container('maven') {
             stage("checking out code") {
