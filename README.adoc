@@ -216,11 +216,11 @@ This value is not indicative of an issue with Jenkins but high values can be use
 
 `jenkins.queue.blocked.history` (histogram):: The historical statistics of `jenkins.queue.blocked.value`.
 
-`jenkins.queue.buildable.value` (gauge):: The number of jobs that are in the Jenkins build queue and currently in the blocked state.
+`jenkins.queue.buildable.value` (gauge):: The number of jobs that are in the Jenkins build queue and currently in the buildable state.
 
 `jenkins.queue.buildable.history` (histogram):: The historical statistics of `jenkins.queue.buildable.value`.
 
-`jenkins.queue.pending.value` (gauge):: The number of jobs that are in the Jenkins build queue and currently in the blocked state.
+`jenkins.queue.pending.value` (gauge):: The number of jobs that are in the Jenkins build queue and currently in the pending state.
 
 `jenkins.queue.pending.history` (histogram):: The historical statistics of `jenkins.queue.pending.value`.
 
@@ -228,7 +228,7 @@ This value is not indicative of an issue with Jenkins but high values can be use
 
 `jenkins.queue.size.history` (histogram):: The historical statistics of `jenkins.queue.size.value`.
 
-`jenkins.queue.stuck.value` (gauge):: The number of jobs that are in the Jenkins build queue and currently in the blocked state.
+`jenkins.queue.stuck.value` (gauge):: The number of jobs that are in the Jenkins build queue and currently in the stuck state.
 
 `jenkins.queue.stuck.history` (histogram):: The historical statistics of `jenkins.queue.stuck.value`.
 
