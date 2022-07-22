@@ -38,9 +38,6 @@
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
-  <description>
-    This plugin exposes the Metrics API to Jenkins plugins.
-  </description>
   <url>https://github.com/jenkinsci/metrics-plugin</url>
   <licenses>
     <license>
