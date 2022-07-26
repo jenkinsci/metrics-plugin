@@ -29,18 +29,15 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.33</version>
+    <version>4.43.1</version>
     <relativePath />
   </parent>
 
   <artifactId>metrics</artifactId>
-  <version>4.1.6.1</version>
+  <version>${revision}.1-${changelist}</version>
   <packaging>hpi</packaging>
 
   <name>Metrics Plugin</name>
-  <description>
-    This plugin exposes the Metrics API to Jenkins plugins.
-  </description>
   <url>https://github.com/jenkinsci/metrics-plugin</url>
   <licenses>
     <license>
@@ -58,18 +55,18 @@
   </developers>
 
   <scm>
-    <connection>scm:git:git://github.com/jenkinsci/metrics-plugin.git</connection>
-    <developerConnection>scm:git:git@github.com:jenkinsci/metrics-plugin.git</developerConnection>
-    <url>http://github.com/jenkinsci/metrics-plugin</url>
-    <tag>metrics-4.1.6.1</tag>
+    <connection>scm:git:https://github.com/${gitHubRepo}.git</connection>
+    <developerConnection>scm:git:git@github.com:${gitHubRepo}.git</developerConnection>
+    <url>https://github.com/${gitHubRepo}</url>
+    <tag>${scmTag}</tag>
   </scm>
 
   <properties>
     <java.level>8</java.level>
     <jenkins.version>2.319.1</jenkins.version>
-    <metrics.version>4.1.6</metrics.version>
-    <revision>4.1.6.1</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <revision>4.1.6</revision>
+    <changelist>999999-SNAPSHOT</changelist>
+    <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
   </properties>
 
   <repositories>
@@ -90,7 +87,7 @@
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
         <artifactId>bom-2.319.x</artifactId>
-        <version>1036.v9f5a1aba8fab</version>
+        <version>1508.v4b_d09ff0e893</version>
         <scope>import</scope>
         <type>pom</type>
       </dependency>
@@ -101,7 +98,7 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-core</artifactId>
-      <version>${metrics.version}</version>
+      <version>${revision}</version>
       <exclusions>
         <exclusion>
           <!-- The version from Jenkins core takes precedence at runtime. -->
@@ -113,7 +110,7 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-servlet</artifactId>
-      <version>${metrics.version}</version>
+      <version>${revision}</version>
       <exclusions>
         <exclusion>
           <!-- The version from Jenkins core takes precedence at runtime. -->
@@ -125,7 +122,7 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-healthchecks</artifactId>
-      <version>${metrics.version}</version>
+      <version>${revision}</version>
       <exclusions>
         <exclusion>
           <!-- The version from Jenkins core takes precedence at runtime. -->
@@ -137,7 +134,7 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-jvm</artifactId>
-      <version>${metrics.version}</version>
+      <version>${revision}</version>
       <exclusions>
         <exclusion>
           <!-- The version from Jenkins core takes precedence at runtime. -->
@@ -149,7 +146,7 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-jmx</artifactId>
-      <version>${metrics.version}</version>
+      <version>${revision}</version>
       <exclusions>
         <exclusion>
           <!-- The version from Jenkins core takes precedence at runtime. -->
@@ -161,7 +158,7 @@
     <dependency>
       <groupId>io.dropwizard.metrics</groupId>
       <artifactId>metrics-json</artifactId>
-      <version>${metrics.version}</version>
+      <version>${revision}</version>
       <exclusions>
         <exclusion>
           <!-- The version from Jenkins core takes precedence at runtime. -->
