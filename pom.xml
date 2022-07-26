@@ -63,7 +63,7 @@
 
   <properties>
     <jenkins.version>2.346.1</jenkins.version>
-    <revision>4.1.6</revision>
+    <revision>4.2.10</revision>
     <changelist>999999-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
   </properties>
@@ -168,6 +168,11 @@
           <!-- use the version supplied by jackson2-api -->
           <groupId>com.fasterxml.jackson.core</groupId>
           <artifactId>jackson-databind</artifactId>
+        </exclusion>
+        <exclusion>
+          <!-- use the version supplied by jackson2-api -->
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-core</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
