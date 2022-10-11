@@ -1005,7 +1005,8 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
             long executionDurationMillis = executor.getElapsedTime(); // i.e., now - startTime
             long startTime = System.currentTimeMillis() - executionDurationMillis;
             long queuingDurationMillis = startTime - item.getInQueueSince();
-            if (!wu.isMainWork()) {
+            boolean subtask = task != task.getOwnerTask();
+            if (subtask) {
                 run.ifPresent(r -> r.addAction(new SubTaskTimeInQueueAction(
                         queuingDurationMillis,
                         TimeUnit.NANOSECONDS.toMillis(t.blocked.get()),
