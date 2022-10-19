@@ -346,7 +346,7 @@ public class TimeInQueueAction implements Serializable, RunAction2 {
      */
     @Override
     public String getIconFileName() {
-        return "symbol-clock plugin-metrics";
+        return "symbol-stopwatch-outline plugin-ionicons-api";
     }
 
     /**
