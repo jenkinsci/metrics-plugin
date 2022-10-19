@@ -63,7 +63,7 @@
 
   <properties>
     <jenkins.version>2.346.1</jenkins.version>
-    <revision>4.2.10</revision>
+    <revision>4.2.12</revision>
     <changelist>999999-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
   </properties>
