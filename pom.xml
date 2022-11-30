@@ -29,7 +29,7 @@
   <parent>
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>plugin</artifactId>
-    <version>4.50</version>
+    <version>4.51</version>
     <relativePath />
   </parent>
 
@@ -63,7 +63,7 @@
 
   <properties>
     <jenkins.version>2.346.3</jenkins.version>
-    <revision>4.2.10</revision>
+    <revision>4.2.13</revision>
     <changelist>999999-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
   </properties>
@@ -86,7 +86,7 @@
       <dependency>
         <groupId>io.jenkins.tools.bom</groupId>
         <artifactId>bom-2.346.x</artifactId>
-        <version>1678.vc1feb_6a_3c0f1</version>
+        <version>1723.vcb_9fee52c9fc</version>
         <scope>import</scope>
         <type>pom</type>
       </dependency>
