@@ -31,13 +31,18 @@ import hudson.model.queue.QueueTaskFuture;
 import jenkins.metrics.api.Metrics;
 import jenkins.metrics.api.QueueItemMetricsEvent;
 import jenkins.metrics.api.QueueItemMetricsListener;
+import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
+import org.jenkinsci.plugins.workflow.job.WorkflowJob;
+import org.jenkinsci.plugins.workflow.job.WorkflowRun;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.jvnet.hudson.test.BuildWatcher;
+import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.SleepBuilder;
 import org.jvnet.hudson.test.TestExtension;
+import org.opentest4j.AssertionFailedError;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -48,7 +53,9 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -134,6 +141,34 @@ public class JenkinsMetricProviderImplTest {
         assertThat(events.get(2).getQueuingWaitingMillis().orElse(null), greaterThan(1500L));
         assertThat(events.get(2).getExecutingMillis().orElse(null), allOf(greaterThan(2500L), lessThan(3800L)));
         assertThat(events.get(2).getExecutorCount().orElse(null), is(1));
+    }
+
+    @Test
+    @Issue("JENKINS-69817")
+    public void given__a_job_with_subtasks__when__built__then__build_include_subtasks_metrics() throws Exception {
+        MyListener listener = ExtensionList.lookup(QueueItemMetricsListener.class).get(MyListener.class);
+        assertThat(listener, notNullValue());
+        
+        WorkflowJob p = j.jenkins.createProject(WorkflowJob.class, "testSubTasks");
+        p.setDefinition(new CpsFlowDefinition("node { sleep 1 }" +
+            "\nnode { sleep 2 }", true));
+//        j.jenkins.setQuietPeriod(0);
+        WorkflowRun workflowRun = Optional.ofNullable(p.scheduleBuild2(0))
+            .orElseThrow(AssertionFailedError::new)
+            .waitForStart();
+        j.waitForCompletion(workflowRun);
+        j.waitUntilNoActivity();
+
+        List<TimeInQueueAction> timeInQueueActions = workflowRun.getActions(TimeInQueueAction.class);
+        assertThat(timeInQueueActions, notNullValue());
+        assertThat(timeInQueueActions, hasSize(1));
+        
+        List<SubTaskTimeInQueueAction> subTaskActions = workflowRun.getActions(SubTaskTimeInQueueAction.class);
+        assertThat(subTaskActions, notNullValue());
+        assertThat(subTaskActions, hasSize(2));
+        assertThat(subTaskActions.get(0).getExecutingDurationMillis()/1000, equalTo(1L));
+        assertThat(subTaskActions.get(1).getExecutingDurationMillis()/1000, equalTo(2L));
+        
     }
 
     @TestExtension
