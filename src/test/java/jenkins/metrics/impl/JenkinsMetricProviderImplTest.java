@@ -42,7 +42,6 @@ import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.SleepBuilder;
 import org.jvnet.hudson.test.TestExtension;
-import org.opentest4j.AssertionFailedError;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -53,7 +52,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyCollectionOf;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -147,19 +145,17 @@ public class JenkinsMetricProviderImplTest {
     @Issue("JENKINS-69817")
     public void given__a_job_with_subtasks__when__built__then__build_include_subtasks_metrics() throws Exception {
         WorkflowJob p = j.createProject(WorkflowJob.class);
-        p.setDefinition(new CpsFlowDefinition("node { sleep 1 }" +
-            "\nnode { sleep 2 }", true));
+        p.setDefinition(new CpsFlowDefinition("node { echo 'subtask1' }" +
+            "\nnode { echo 'subtask2' }", true));
         WorkflowRun workflowRun = j.buildAndAssertSuccess(p);
 
         List<TimeInQueueAction> timeInQueueActions = workflowRun.getActions(TimeInQueueAction.class);
         assertThat(timeInQueueActions, notNullValue());
         assertThat(timeInQueueActions, hasSize(1));
-        
+
         List<SubTaskTimeInQueueAction> subTaskActions = workflowRun.getActions(SubTaskTimeInQueueAction.class);
         assertThat(subTaskActions, notNullValue());
         assertThat(subTaskActions, hasSize(2));
-        assertThat(subTaskActions.get(0).getExecutingDurationMillis()/1000, equalTo(1L));
-        assertThat(subTaskActions.get(1).getExecutingDurationMillis()/1000, equalTo(2L));
     }
 
     @TestExtension
