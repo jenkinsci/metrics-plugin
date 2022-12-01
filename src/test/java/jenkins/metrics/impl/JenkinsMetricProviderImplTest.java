@@ -146,12 +146,10 @@ public class JenkinsMetricProviderImplTest {
     @Test
     @Issue("JENKINS-69817")
     public void given__a_job_with_subtasks__when__built__then__build_include_subtasks_metrics() throws Exception {
-        MyListener listener = ExtensionList.lookupSingleton(MyListener.class);
-        
         WorkflowJob p = j.createProject(WorkflowJob.class);
         p.setDefinition(new CpsFlowDefinition("node { sleep 1 }" +
             "\nnode { sleep 2 }", true));
-        WorkflowRun workflowRun = j.buildAndAssertAccess(p);
+        WorkflowRun workflowRun = j.buildAndAssertSuccess(p);
 
         List<TimeInQueueAction> timeInQueueActions = workflowRun.getActions(TimeInQueueAction.class);
         assertThat(timeInQueueActions, notNullValue());
