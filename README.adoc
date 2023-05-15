@@ -244,6 +244,18 @@ This value is not indicative of an issue with Jenkins but high values can be use
 
 `jenkins.queue.stuck.history` (histogram):: The historical statistics of `jenkins.queue.stuck.value`.
 
+`jenkins.project.count.value` (gauge):: The number of projects.
+
+`jenkins.project.count.history` (histogram):: The historical statistics of `jenkins.project.count.value`.
+
+`jenkins.project.enabled.count.value` (gauge):: The number of projects enabled.
+
+`jenkins.project.enabled.count.history` (histogram):: The historical statistics of `jenkins.project.enabled.count.value`.
+
+`jenkins.project.disabled.count.value` (gauge):: The number of projects disabled.
+
+`jenkins.project.disabled.count.history` (histogram):: The historical statistics of `jenkins.project.disabled.count.value`.
+
 === Dropwizard Operational Menu Servlet
 There is a very basic set of standard servlets provided by Dropwizard in conjunction with an Operational menu.
 
