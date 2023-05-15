@@ -168,6 +168,7 @@ Larger values indicate increasing health as measured by the health checks.
 `jenkins.job.buildable.duration` (timer):: The rate at which jobs in the build queue enter the buildable state and the amount of time they spend in that state.
 `jenkins.job.building.duration` (timer):: The rate at which jobs are built and the time they spend building.
 `jenkins.job.queuing.duration` (timer):: The rate at which jobs are queued and the total time they spend in the build queue.
+`jenkins.job.execution.time` (timer):: The total time spent by executing jobs in the build queue. 
 `jenkins.job.total.duration` (timer):: The rate at which jobs are queued and the total time they spend from entering the build queue to completing building
 `jenkins.job.waiting.duration` (timer):: The rate at which jobs enter the quiet period and the total amount of time that jobs spend in their quiet period.
 Jenkins allows configuring a quiet period for most job types.
