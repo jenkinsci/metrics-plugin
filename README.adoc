@@ -168,9 +168,17 @@ Larger values indicate increasing health as measured by the health checks.
 `jenkins.job.buildable.duration` (timer):: The rate at which jobs in the build queue enter the buildable state and the amount of time they spend in that state.
 `jenkins.job.building.duration` (timer):: The rate at which jobs are built and the time they spend building.
 `jenkins.job.queuing.duration` (timer):: The rate at which jobs are queued and the total time they spend in the build queue.
-`jenkins.job.execution.time` (timer):: The total time spent by executing jobs in the build queue. 
+`jenkins.job.execution.time` (timer):: The rate at which jobs in the build queue enter the execution state and the amount of time they spend in that state.
 `jenkins.job.total.duration` (timer):: The rate at which jobs are queued and the total time they spend from entering the build queue to completing building
 `jenkins.job.waiting.duration` (timer):: The rate at which jobs enter the quiet period and the total amount of time that jobs spend in their quiet period.
+
+`jenkins.task.scheduled` (meter):: Similar to jenkins.job.scheduled but for task.
+`jenkins.task.queuing` (timer):: The rate at which tasks are queued and the total time they spend in the build queue.
+`jenkins.task.waiting` (timer):: The rate at which tasks enter the quiet period and the total amount of time that jobs spend in their quiet period.
+`jenkins.task.blocked` (timer):: The rate at which tasks in the build queue enter the blocked state and the amount of time they spend in that state.
+`jenkins.task.buildable` (timer):: The rate at which tasks in the build queue enter the buildable state and the amount of time they spend in that state.
+`jenkins.task.execution` (timer):: The rate at which tasks in the build queue enter the execution state and the amount of time they spend in that state.
+
 Jenkins allows configuring a quiet period for most job types.
 While in the quiet period multiple identical requests for building the job will be coalesced.
 Traditionally this was used with source control systems that do not provide an atomic commit facility - such as CVS - in order to ensure that all the files in a large commit were picked up as a single build.
