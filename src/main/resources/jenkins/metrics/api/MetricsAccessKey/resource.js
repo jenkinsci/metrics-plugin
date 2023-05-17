@@ -22,25 +22,26 @@
  * THE SOFTWARE.
  */
 function saveApiToken(button) {
-  if (button.hasClassName('request-pending')) {
+  if (button.classList.contains('request-pending')) {
     return;
   }
-  button.addClassName('request-pending');
-  const repeatedChunk = button.up('.repeated-chunk');
+  button.classList.add('request-pending');
+  const repeatedChunk = button.closest('.repeated-chunk');
 
   const targetUrl = button.getAttribute('data-target-url');
-  new Ajax.Request(targetUrl, {
+  fetch(targetUrl, {
     method: 'post',
-    onSuccess: function (resp) {
+  }).then((resp) => {
+    if (resp.ok) {
       const json = resp.responseJSON;
       if (json.status === 'error') {
-        button.removeClassName('request-pending');
+        button.classList.remove('request-pending');
       } else {
         const {tokenValue} = json.data;
         // The visible part, so it can be copied
         const tokenValueSpan = repeatedChunk.querySelector('span.metrics-access-key-new-token-value');
         tokenValueSpan.innerText = tokenValue;
-        tokenValueSpan.addClassName('visible');
+        tokenValueSpan.classList.add('visible');
 
         // The input sent to save the configuration
         repeatedChunk.querySelector('[name = "key"]').value = tokenValue;
@@ -48,15 +49,14 @@ function saveApiToken(button) {
         // Show the copy button
         const tokenCopyButton = repeatedChunk.querySelector('.copy-button');
         tokenCopyButton.setAttribute('text', tokenValue);
-        tokenCopyButton.removeClassName('invisible')
-        tokenCopyButton.addClassName('visible');
+        tokenCopyButton.classList.remove('invisible')
+        tokenCopyButton.classList.add('visible');
 
         // Show the warning message
-        repeatedChunk.querySelector('.metrics-access-key-display-after-generation')
-            .addClassName('visible');
+        repeatedChunk.querySelector('.metrics-access-key-display-after-generation').classList.add('visible');
 
         button.remove();
       }
-    },
+    }
   });
 }
