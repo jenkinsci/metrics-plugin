@@ -31,32 +31,34 @@ function saveApiToken(button) {
   const targetUrl = button.getAttribute('data-target-url');
   fetch(targetUrl, {
     method: 'post',
+    headers: crumb.wrap({}),
   }).then((resp) => {
     if (resp.ok) {
-      const json = resp.responseJSON;
-      if (json.status === 'error') {
-        button.classList.remove('request-pending');
-      } else {
-        const {tokenValue} = json.data;
-        // The visible part, so it can be copied
-        const tokenValueSpan = repeatedChunk.querySelector('span.metrics-access-key-new-token-value');
-        tokenValueSpan.innerText = tokenValue;
-        tokenValueSpan.classList.add('visible');
+      resp.json().then((json) => {
+        if (json.status === 'error') {
+          button.classList.remove('request-pending');
+        } else {
+          const {tokenValue} = json.data;
+          // The visible part, so it can be copied
+          const tokenValueSpan = repeatedChunk.querySelector('span.metrics-access-key-new-token-value');
+          tokenValueSpan.innerText = tokenValue;
+          tokenValueSpan.classList.add('visible');
 
-        // The input sent to save the configuration
-        repeatedChunk.querySelector('[name = "key"]').value = tokenValue;
+          // The input sent to save the configuration
+          repeatedChunk.querySelector('[name = "key"]').value = tokenValue;
 
-        // Show the copy button
-        const tokenCopyButton = repeatedChunk.querySelector('.copy-button');
-        tokenCopyButton.setAttribute('text', tokenValue);
-        tokenCopyButton.classList.remove('invisible')
-        tokenCopyButton.classList.add('visible');
+          // Show the copy button
+          const tokenCopyButton = repeatedChunk.querySelector('.copy-button');
+          tokenCopyButton.setAttribute('text', tokenValue);
+          tokenCopyButton.classList.remove('invisible')
+          tokenCopyButton.classList.add('visible');
 
-        // Show the warning message
-        repeatedChunk.querySelector('.metrics-access-key-display-after-generation').classList.add('visible');
+          // Show the warning message
+          repeatedChunk.querySelector('.metrics-access-key-display-after-generation').classList.add('visible');
 
-        button.remove();
-      }
+          button.remove();
+        }
+      });
     }
   });
 }
