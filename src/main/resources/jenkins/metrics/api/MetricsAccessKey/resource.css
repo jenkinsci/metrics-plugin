@@ -48,9 +48,6 @@
 .metrics-access-key-copy.invisible {
     display: none;
 }
-.metrics-access-key-copy.visible {
-    display: block;
-}
 
 .metrics-access-key-display-after-generation {
     margin-top: 5px;
