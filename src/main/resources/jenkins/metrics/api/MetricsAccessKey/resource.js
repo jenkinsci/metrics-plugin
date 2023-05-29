@@ -22,41 +22,43 @@
  * THE SOFTWARE.
  */
 function saveApiToken(button) {
-  if (button.hasClassName('request-pending')) {
+  if (button.classList.contains('request-pending')) {
     return;
   }
-  button.addClassName('request-pending');
-  const repeatedChunk = button.up('.repeated-chunk');
+  button.classList.add('request-pending');
+  const repeatedChunk = button.closest('.repeated-chunk');
 
   const targetUrl = button.getAttribute('data-target-url');
-  new Ajax.Request(targetUrl, {
+  fetch(targetUrl, {
     method: 'post',
-    onSuccess: function (resp) {
-      const json = resp.responseJSON;
-      if (json.status === 'error') {
-        button.removeClassName('request-pending');
-      } else {
-        const {tokenValue} = json.data;
-        // The visible part, so it can be copied
-        const tokenValueSpan = repeatedChunk.querySelector('span.metrics-access-key-new-token-value');
-        tokenValueSpan.innerText = tokenValue;
-        tokenValueSpan.addClassName('visible');
+    headers: crumb.wrap({}),
+  }).then((resp) => {
+    if (resp.ok) {
+      resp.json().then((json) => {
+        if (json.status === 'error') {
+          button.classList.remove('request-pending');
+        } else {
+          const {tokenValue} = json.data;
+          // The visible part, so it can be copied
+          const tokenValueSpan = repeatedChunk.querySelector('span.metrics-access-key-new-token-value');
+          tokenValueSpan.innerText = tokenValue;
+          tokenValueSpan.classList.add('visible');
 
-        // The input sent to save the configuration
-        repeatedChunk.querySelector('[name = "key"]').value = tokenValue;
+          // The input sent to save the configuration
+          repeatedChunk.querySelector('[name = "key"]').value = tokenValue;
 
-        // Show the copy button
-        const tokenCopyButton = repeatedChunk.querySelector('.copy-button');
-        tokenCopyButton.setAttribute('text', tokenValue);
-        tokenCopyButton.removeClassName('invisible')
-        tokenCopyButton.addClassName('visible');
+          // Show the copy button
+          const tokenCopyButton = repeatedChunk.querySelector('.copy-button');
+          tokenCopyButton.setAttribute('text', tokenValue);
+          tokenCopyButton.classList.remove('invisible')
+          tokenCopyButton.classList.add('visible');
 
-        // Show the warning message
-        repeatedChunk.querySelector('.metrics-access-key-display-after-generation')
-            .addClassName('visible');
+          // Show the warning message
+          repeatedChunk.querySelector('.metrics-access-key-display-after-generation').classList.add('visible');
 
-        button.remove();
-      }
-    },
+          button.remove();
+        }
+      });
+    }
   });
 }
