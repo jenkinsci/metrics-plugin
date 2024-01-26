@@ -168,14 +168,26 @@ Larger values indicate increasing health as measured by the health checks.
 `jenkins.job.buildable.duration` (timer):: The rate at which jobs in the build queue enter the buildable state and the amount of time they spend in that state.
 `jenkins.job.building.duration` (timer):: The rate at which jobs are built and the time they spend building.
 `jenkins.job.queuing.duration` (timer):: The rate at which jobs are queued and the total time they spend in the build queue.
+`jenkins.job.execution.time` (timer):: The rate at which jobs in the build queue enter the execution state and the amount of time they spend in that state.
 `jenkins.job.total.duration` (timer):: The rate at which jobs are queued and the total time they spend from entering the build queue to completing building
 `jenkins.job.waiting.duration` (timer):: The rate at which jobs enter the quiet period and the total amount of time that jobs spend in their quiet period.
+
+`jenkins.task.scheduled` (meter):: Similar to jenkins.job.scheduled but for task.
+`jenkins.task.queuing.duration` (timer):: The rate at which tasks are queued and the total time they spend in the build queue.
+`jenkins.task.waiting.duration` (timer):: The rate at which tasks enter the quiet period and the total amount of time that jobs spend in their quiet period.
+`jenkins.task.blocked.duration` (timer):: The rate at which tasks in the build queue enter the blocked state and the amount of time they spend in that state.
+`jenkins.task.buildable.duration` (timer):: The rate at which tasks in the build queue enter the buildable state and the amount of time they spend in that state.
+`jenkins.task.execution.duration` (timer):: The rate at which tasks in the build queue enter the execution state and the amount of time they spend in that state.
+
 Jenkins allows configuring a quiet period for most job types.
 While in the quiet period multiple identical requests for building the job will be coalesced.
 Traditionally this was used with source control systems that do not provide an atomic commit facility - such as CVS - in order to ensure that all the files in a large commit were picked up as a single build.
 With more modern source control systems the quiet period can still be useful, for example to ensure that push notification of the same commit via redundant parallel notification paths get coalesced.
+
 `jenkins.job.count.value` (gauge):: The number of jobs in Jenkins
+
 `jenkins.job.count.history` (histogram):: The historical statistics of `jenkins.job.count.value`.
+
 `jenkins.job.scheduled` (meter):: The rate at which jobs are scheduled.
 If a job is already in the queue and an identical request for scheduling the job is received then Jenkins will coalesce the two requests.
 This metric gives a reasonably pure measure of the load requirements of the Jenkins controller as it is unaffected by the number of executors available to the system.
@@ -231,6 +243,18 @@ This value is not indicative of an issue with Jenkins but high values can be use
 `jenkins.queue.stuck.value` (gauge):: The number of jobs that are in the Jenkins build queue and currently in the stuck state.
 
 `jenkins.queue.stuck.history` (histogram):: The historical statistics of `jenkins.queue.stuck.value`.
+
+`jenkins.project.count.value` (gauge):: The number of projects.
+
+`jenkins.project.count.history` (histogram):: The historical statistics of `jenkins.project.count.value`.
+
+`jenkins.project.enabled.count.value` (gauge):: The number of projects enabled.
+
+`jenkins.project.enabled.count.history` (histogram):: The historical statistics of `jenkins.project.enabled.count.value`.
+
+`jenkins.project.disabled.count.value` (gauge):: The number of projects disabled.
+
+`jenkins.project.disabled.count.history` (histogram):: The historical statistics of `jenkins.project.disabled.count.value`.
 
 === Dropwizard Operational Menu Servlet
 There is a very basic set of standard servlets provided by Dropwizard in conjunction with an Operational menu.
