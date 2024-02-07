@@ -88,6 +88,7 @@ import jenkins.metrics.api.QueueItemMetricsListener;
 import jenkins.metrics.util.AutoSamplingHistogram;
 import jenkins.model.Jenkins;
 import jenkins.model.ParameterizedJobMixIn;
+import jenkins.security.UpdateSiteWarningsMonitor;
 import org.kohsuke.accmod.Restricted;
 import org.kohsuke.accmod.restrictions.DoNotUse;
 
@@ -485,6 +486,12 @@ public class JenkinsMetricProviderImpl extends MetricProvider {
                             }
                         }
                         return count;
+                    }
+                }),
+                metric(name("jenkins", "plugins", "withWarnings"), new CachedGauge<Integer>(5, TimeUnit.MINUTES) {
+                    @Override
+                    protected Integer loadValue() {
+                        return ExtensionList.lookupSingleton(UpdateSiteWarningsMonitor.class).getActivePluginWarningsByPlugin().size();
                     }
                 }),
                 metric(name("jenkins", "runs"), runCounters())

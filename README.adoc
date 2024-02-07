@@ -224,6 +224,8 @@ A value other than `0` is typically indicative of a potential issue within the J
 `jenkins.plugins.withUpdate` (gauge):: The number of plugins in the Jenkins instance that have an newer version reported as available in the current Jenkins update center metadata held by Jenkins.
 This value is not indicative of an issue with Jenkins but high values can be used as a trigger to review the plugins with updates with a view to seeing whether those updates potentially contain fixes for issues that could be affecting your Jenkins instance.
 
+`jenkins.plugins.withWarnings` (gauge):: The number of plugins in the Jenkins instance that have a known warning (e.g. a security vulnerability).
+
 `jenkins.queue.blocked.value` (gauge):: The number of jobs that are in the Jenkins build queue and currently in the blocked state.
 
 `jenkins.queue.blocked.history` (histogram):: The historical statistics of `jenkins.queue.blocked.value`.
