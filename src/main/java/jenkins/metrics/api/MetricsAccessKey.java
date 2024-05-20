@@ -517,7 +517,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
 
         @RequirePOST
         public HttpResponse doGenerateNewToken() {
-            Jenkins.get().checkPermission(Jenkins.ADMINISTER);
+            Jenkins.get().checkPermission(Jenkins.MANAGE);
 
             Map<String, Object> data = new HashMap<>();
             data.put("tokenValue", DescriptorImpl.generateKey());
