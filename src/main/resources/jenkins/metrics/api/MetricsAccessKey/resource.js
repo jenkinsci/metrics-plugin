@@ -63,8 +63,8 @@ function saveApiToken(button) {
   });
 }
 
-Behaviour.specify(".metrics-generate-api-token", "MetricsAccessKey_generateToken", 0, (element) => {
-  element.addEventListener("click", (event) => {
+Behaviour.specify('.metrics-generate-api-token', 'MetricsAccessKey_generateToken', 0, (element) => {
+  element.addEventListener('click', (event) => {
     saveApiToken(event.target);
   });
 });
