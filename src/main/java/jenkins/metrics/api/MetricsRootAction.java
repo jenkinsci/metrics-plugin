@@ -68,9 +68,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jenkins.metrics.util.ExponentialLeakyBucket;
 import jenkins.metrics.util.NameRewriterMetricRegistry;
 import jenkins.model.Jenkins;
@@ -81,8 +81,8 @@ import org.kohsuke.accmod.restrictions.DoNotUse;
 import org.kohsuke.accmod.restrictions.NoExternalUse;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.QueryParameter;
-import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.StaplerRequest2;
+import org.kohsuke.stapler.StaplerResponse2;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 
 import static com.codahale.metrics.MetricRegistry.name;
@@ -183,7 +183,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      *                                with the appropriate authorization key.
      */
     @SuppressWarnings("unchecked")
-    private static void requireCorrectMethod(@NonNull StaplerRequest req) throws IllegalAccessException {
+    private static void requireCorrectMethod(@NonNull StaplerRequest2 req) throws IllegalAccessException {
         if (!(req.getMethod().equals("POST")
                 || (req.getMethod().equals("OPTIONS") && StringUtils.isNotBlank(req.getHeader("Origin")))
                 || (req.getMethod().equals("GET") && getKeyFromAuthorizationHeader(req) != null)
@@ -199,7 +199,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      * @return the authorization key or {@code null}.
      */
     @CheckForNull
-    private static String getKeyFromAuthorizationHeader(@NonNull StaplerRequest req) {
+    private static String getKeyFromAuthorizationHeader(@NonNull StaplerRequest2 req) {
         for (Object o : Collections.list(req.getHeaders("Authorization"))) {
             if (o instanceof String && ((String) o).startsWith("Jenkins-Metrics-Key ")) {
                 return Util.fixEmptyAndTrim(((String) o).substring("Jenkins-Metrics-Key ".length()));
@@ -209,13 +209,13 @@ public class MetricsRootAction implements UnprotectedRootAction {
     }
 
     /**
-     * Parses a {@link StaplerRequest} and extracts the {code max-age=...} directive from the client headers if present.
+     * Parses a {@link StaplerRequest2} and extracts the {code max-age=...} directive from the client headers if present.
      *
      * @param req the request.
      * @return the max-age (in milliseconds) or -1 if not present.
      */
     @SuppressWarnings("unchecked")
-    private static long getCacheControlMaxAge(StaplerRequest req) {
+    private static long getCacheControlMaxAge(StaplerRequest2 req) {
         long maxAge = -1L;
         for (String value : Collections.list((Enumeration<String>) req.getHeaders(CACHE_CONTROL))) {
             Matcher matcher = CACHE_CONTROL_MAX_AGE.matcher(value);
@@ -283,7 +283,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      */
     @SuppressWarnings("unused") // stapler binding
     @Restricted(NoExternalUse.class) // stapler binding
-    public HttpResponse doHealthcheck(StaplerRequest req, @QueryParameter("key") String key)
+    public HttpResponse doHealthcheck(StaplerRequest2 req, @QueryParameter("key") String key)
             throws IllegalAccessException {
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
@@ -317,7 +317,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      */
     @SuppressWarnings("unused") // stapler binding
     @Restricted(NoExternalUse.class) // stapler binding
-    public HttpResponse doHealthcheckOk(StaplerRequest req) {
+    public HttpResponse doHealthcheckOk(StaplerRequest2 req) {
         long ifModifiedSince = req.getDateHeader("If-Modified-Since");
         long maxAge = getCacheControlMaxAge(req);
         Metrics.HealthCheckData data = Metrics.getHealthCheckData();
@@ -346,7 +346,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      */
     @SuppressWarnings("unused") // stapler binding
     @Restricted(NoExternalUse.class) // stapler binding
-    public HttpResponse doMetrics(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+    public HttpResponse doMetrics(StaplerRequest2 req, @QueryParameter("key") String key) throws IllegalAccessException {
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
             key = getKeyFromAuthorizationHeader(req);
@@ -366,7 +366,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      */
     @SuppressWarnings("unused") // stapler binding
     @Restricted(NoExternalUse.class) // stapler binding
-    public HttpResponse doMetricsHistory(StaplerRequest req, @QueryParameter("key") String key)
+    public HttpResponse doMetricsHistory(StaplerRequest2 req, @QueryParameter("key") String key)
             throws IllegalAccessException {
         if (!Sampler.isEnabled()) {
             return HttpResponses.notFound();
@@ -390,7 +390,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
      */
     @SuppressWarnings("unused") // stapler binding
     @Restricted(NoExternalUse.class) // stapler binding
-    public HttpResponse doPing(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+    public HttpResponse doPing(StaplerRequest2 req, @QueryParameter("key") String key) throws IllegalAccessException {
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
             key = getKeyFromAuthorizationHeader(req);
@@ -411,7 +411,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
     @SuppressWarnings("unused") // stapler binding
     @Restricted(NoExternalUse.class) // stapler binding
     @RequirePOST
-    public HttpResponse doThreads(StaplerRequest req, @QueryParameter("key") String key) throws IllegalAccessException {
+    public HttpResponse doThreads(StaplerRequest2 req, @QueryParameter("key") String key) throws IllegalAccessException {
         requireCorrectMethod(req);
         if (StringUtils.isBlank(key)) {
             key = getKeyFromAuthorizationHeader(req);
@@ -433,7 +433,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
          * @return the response
          */
         @Restricted(NoExternalUse.class) // only for use by stapler web binding
-        public HttpResponse doHealthcheck(StaplerRequest req) {
+        public HttpResponse doHealthcheck(StaplerRequest2 req) {
             long ifModifiedSince = req.getDateHeader("If-Modified-Since");
             long maxAge = getCacheControlMaxAge(req);
             Metrics.HealthCheckData data = Metrics.getHealthCheckData();
@@ -529,7 +529,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         /**
          * {@inheritDoc}
          */
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+        public void generateResponse(StaplerRequest2 req, StaplerResponse2 resp, Object node) throws IOException,
                 ServletException {
             resp.setStatus(HttpServletResponse.SC_OK);
             resp.setHeader(MetricsRootAction.CACHE_CONTROL, MetricsRootAction.NO_CACHE);
@@ -569,7 +569,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         /**
          * {@inheritDoc}
          */
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+        public void generateResponse(StaplerRequest2 req, StaplerResponse2 resp, Object node) throws IOException,
                 ServletException {
             resp.setStatus(code);
             if (expires == null) {
@@ -599,7 +599,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         /**
          * {@inheritDoc}
          */
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+        public void generateResponse(StaplerRequest2 req, StaplerResponse2 resp, Object node) throws IOException,
                 ServletException {
             resp.setStatus(HttpServletResponse.SC_OK);
             resp.setHeader(CACHE_CONTROL, NO_CACHE);
@@ -631,7 +631,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         /**
          * {@inheritDoc}
          */
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+        public void generateResponse(StaplerRequest2 req, StaplerResponse2 resp, Object node) throws IOException,
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
             String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
@@ -689,7 +689,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         /**
          * {@inheritDoc}
          */
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+        public void generateResponse(StaplerRequest2 req, StaplerResponse2 resp, Object node) throws IOException,
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
             String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
@@ -723,7 +723,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
         /**
          * {@inheritDoc}
          */
-        public void generateResponse(StaplerRequest req, StaplerResponse resp, Object node) throws IOException,
+        public void generateResponse(StaplerRequest2 req, StaplerResponse2 resp, Object node) throws IOException,
                 ServletException {
             boolean jsonp = StringUtils.isNotBlank(req.getParameter("callback"));
             String jsonpCallback = StringUtils.defaultIfBlank(req.getParameter("callback"), "callback");
@@ -762,7 +762,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
          */
         @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
-        public HttpResponse doHealthcheck(StaplerRequest req) {
+        public HttpResponse doHealthcheck(StaplerRequest2 req) {
             Jenkins.getInstance().checkPermission(Metrics.HEALTH_CHECK);
             return super.doHealthcheck(req);
         }
@@ -844,7 +844,7 @@ public class MetricsRootAction implements UnprotectedRootAction {
          */
         @Restricted(NoExternalUse.class) // only for use by stapler web binding
         @Override
-        public HttpResponse doHealthcheck(StaplerRequest req) {
+        public HttpResponse doHealthcheck(StaplerRequest2 req) {
             Metrics.checkAccessKeyHealthCheck(key);
             return Metrics.cors(key, super.doHealthcheck(req));
         }
