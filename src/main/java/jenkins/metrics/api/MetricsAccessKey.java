@@ -44,8 +44,8 @@ import org.apache.commons.lang.StringUtils;
 import org.kohsuke.stapler.DataBoundConstructor;
 import org.kohsuke.stapler.DataBoundSetter;
 import org.kohsuke.stapler.HttpResponse;
-import org.kohsuke.stapler.StaplerRequest;
-import org.kohsuke.stapler.StaplerResponse;
+import org.kohsuke.stapler.StaplerRequest2;
+import org.kohsuke.stapler.StaplerResponse2;
 import org.kohsuke.stapler.interceptor.RequirePOST;
 import org.xml.sax.Attributes;
 import org.xml.sax.InputSource;
@@ -55,7 +55,7 @@ import org.xml.sax.ext.Locator2;
 import org.xml.sax.helpers.DefaultHandler;
 
 import net.jcip.annotations.GuardedBy;
-import javax.servlet.ServletException;
+import jakarta.servlet.ServletException;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
@@ -413,7 +413,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         }
 
         @Override
-        public synchronized boolean configure(StaplerRequest req, JSONObject json) throws FormException {
+        public synchronized boolean configure(StaplerRequest2 req, JSONObject json) throws FormException {
             final List<MetricsAccessKey> keys = req.bindJSONToList(MetricsAccessKey.class, json.get("accessKeys"));
             for (MetricsAccessKey accessKey : keys) {
                 if (accessKey.getKey().getPlainText().isEmpty()) {
@@ -538,7 +538,7 @@ public class MetricsAccessKey extends AbstractDescribableImpl<MetricsAccessKey> 
         public HttpResponse cors(@CheckForNull String accessKey, final HttpResponse resp) {
             final MetricsAccessKey key = getAccessKey(accessKey);
             return key == null ? resp : new HttpResponse() {
-                public void generateResponse(StaplerRequest req, StaplerResponse rsp, Object node)
+                public void generateResponse(StaplerRequest2 req, StaplerResponse2 rsp, Object node)
                         throws IOException, ServletException {
                     String origin = req.getHeader("Origin");
                     if (StringUtils.isNotBlank(origin) && key.isOriginAllowed(origin)) {
