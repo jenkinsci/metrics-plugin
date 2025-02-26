@@ -23,25 +23,22 @@
  */
 package jenkins.metrics.api;
 
-import static org.junit.Assert.*;
-
-import org.junit.Rule;
-import org.junit.Test;
-import org.jvnet.hudson.test.JenkinsRule;
-
 import jenkins.metrics.api.Metrics.HealthChecker;
 import jenkins.metrics.util.HealthChecksThreadPool;
+import org.junit.jupiter.api.Test;
+import org.jvnet.hudson.test.JenkinsRule;
+import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * Test the {@link HealthChecker} execution of health checks
  */
-public class HealthCheckerTest {
-
-    @Rule
-    public JenkinsRule j = new JenkinsRule();
+@WithJenkins
+class HealthCheckerTest {
 
     @Test
-    public void testHealthChecksAreNotRejected() throws Exception {
+    void testHealthChecksAreNotRejected(JenkinsRule j) throws Exception {
         while (HealthCheckProviderForTesting.runs < 6 && HealthChecksThreadPool.getRejectedExecutions() == 0) {
             Thread.sleep(1000);
         }

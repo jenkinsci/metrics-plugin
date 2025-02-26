@@ -23,13 +23,12 @@
  */
 package jenkins.metrics.api;
 
-import java.util.Map;
-import java.util.Map.Entry;
-
 import com.codahale.metrics.health.HealthCheck;
-
 import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
+
+import java.util.Map;
+import java.util.Map.Entry;
 
 @Extension
 public class HealthCheckProviderForTesting extends HealthCheckProvider {
@@ -47,7 +46,7 @@ public class HealthCheckProviderForTesting extends HealthCheckProvider {
             @Override
             protected Result check() throws Exception {
                 runs++;
-                Thread.sleep(1 * 1000);
+                Thread.sleep(1000);
                 return Result.unhealthy("some error message");
             }
         });
