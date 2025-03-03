@@ -46,7 +46,7 @@ public class HealthCheckProviderForTesting extends HealthCheckProvider {
             @Override
             protected Result check() throws Exception {
                 runs++;
-                Thread.sleep(1000);
+                Thread.sleep(1 * 1000);
                 return Result.unhealthy("some error message");
             }
         });
