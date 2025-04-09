@@ -34,18 +34,15 @@ import jenkins.metrics.api.QueueItemMetricsListener;
 import org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition;
 import org.jenkinsci.plugins.workflow.job.WorkflowJob;
 import org.jenkinsci.plugins.workflow.job.WorkflowRun;
-import org.junit.ClassRule;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
-import org.jvnet.hudson.test.BuildWatcher;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
 import org.jvnet.hudson.test.Issue;
 import org.jvnet.hudson.test.JenkinsRule;
 import org.jvnet.hudson.test.SleepBuilder;
 import org.jvnet.hudson.test.TestExtension;
+import org.jvnet.hudson.test.junit.jupiter.WithJenkins;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -59,15 +56,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class JenkinsMetricProviderImplTest {
-    @Rule
-    public JenkinsRule j = new JenkinsRule();
-
-    @ClassRule
-    public static BuildWatcher w = new BuildWatcher();
+@WithJenkins
+class JenkinsMetricProviderImplTest {
 
     @Test
-    public void given__a_job_which_is_cancelled() throws Exception {
+    void given__a_job_which_is_cancelled(JenkinsRule j) throws Exception {
         MyListener listener = ExtensionList.lookup(QueueItemMetricsListener.class).get(MyListener.class);
         assertThat(listener, notNullValue());
 
@@ -76,24 +69,23 @@ public class JenkinsMetricProviderImplTest {
         QueueTaskFuture<FreeStyleBuild> taskFuture = job.scheduleBuild2(10);
         taskFuture.cancel(true);
 
-        try{
+        try {
             j.waitForCompletion(taskFuture.waitForStart());
-        }catch (Throwable t){
+        } catch (Throwable t) {
             //CancellationException expected
         }
 
         //wait for completion
-        while (!listener.state.toString().contains("C")){
+        while (!listener.state.toString().contains("C")) {
             Thread.sleep(10);
         }
 
         assertThat(listener.state.toString(), is("QC"));
-
     }
 
-    @Ignore("TODO allOf(greaterThan(2500L), lessThan(3800L)) flaky: 3999 observed")
+    @Disabled("TODO allOf(greaterThan(2500L), lessThan(3800L)) flaky: 3999 observed")
     @Test
-    public void given__a_job__when__built__then__events_and_metrics_include_build() throws Exception {
+    void given__a_job__when__built__then__events_and_metrics_include_build(JenkinsRule j) throws Exception {
         j.jenkins.setQuietPeriod(0);
         MyListener listener = ExtensionList.lookup(QueueItemMetricsListener.class).get(MyListener.class);
         assertThat(listener, notNullValue());
@@ -106,18 +98,18 @@ public class JenkinsMetricProviderImplTest {
         j.assertBuildStatusSuccess(p.scheduleBuild2(2));
 
         //wait for completion
-        while (!listener.state.toString().contains("F")){
+        while (!listener.state.toString().contains("F")) {
             Thread.sleep(10);
         }
         assertThat(listener.state.toString(), is("QSF"));
 
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getCount(), is(1L));
         assertThat(Metrics.metricRegistry().getTimers().get("jenkins.job.building.duration").getSnapshot().getMean(),
-                allOf(greaterThan(TimeUnit.MILLISECONDS.toNanos(2500)*1.0),
+                allOf(greaterThan(TimeUnit.MILLISECONDS.toNanos(2500) * 1.0),
                         lessThan(TimeUnit.MILLISECONDS.toNanos(3800) * 1.0)));
         List<QueueItemMetricsEvent> events = listener.getEvents();
         assertThat(events.size(), is(3));
-        Collections.sort(events, QueueItemMetricsEvent::compareEventSequence);
+        events.sort(QueueItemMetricsEvent::compareEventSequence);
         events.forEach(System.err::println);
 
         assertThat(events.get(0).getState(), is(QueueItemMetricsEvent.State.QUEUED));
@@ -145,10 +137,10 @@ public class JenkinsMetricProviderImplTest {
 
     @Test
     @Issue("JENKINS-69817")
-    public void given__a_job_with_subtasks__when__built__then__build_include_subtasks_metrics() throws Exception {
+    void given__a_job_with_subtasks__when__built__then__build_include_subtasks_metrics(JenkinsRule j) throws Exception {
         WorkflowJob p = j.createProject(WorkflowJob.class);
         p.setDefinition(new CpsFlowDefinition("node { echo 'subtask1' }" +
-            "\nnode { echo 'subtask2' }", true));
+                "\nnode { echo 'subtask2' }", true));
         WorkflowRun workflowRun = j.buildAndAssertSuccess(p);
 
         List<TimeInQueueAction> timeInQueueActions = workflowRun.getActions(TimeInQueueAction.class);
@@ -163,7 +155,7 @@ public class JenkinsMetricProviderImplTest {
     @TestExtension
     public static class MyListener extends QueueItemMetricsListener {
         private final List<QueueItemMetricsEvent> events = new ArrayList<>();
-        public StringBuilder state = new StringBuilder();
+        public final StringBuilder state = new StringBuilder();
 
         @Override
         public void onQueued(QueueItemMetricsEvent event) {
