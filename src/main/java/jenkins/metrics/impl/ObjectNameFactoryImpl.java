@@ -7,7 +7,7 @@ import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
 
 import com.codahale.metrics.jmx.ObjectNameFactory;
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 
 public class ObjectNameFactoryImpl implements ObjectNameFactory {
     private static final Logger LOGGER = Logger.getLogger(ObjectNameFactoryImpl.class.getName());

@@ -2,7 +2,7 @@ package jenkins.metrics.api;
 
 import hudson.util.VersionNumber;
 import jenkins.model.Jenkins;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
