@@ -182,6 +182,10 @@
     <!-- plugin dependencies -->
     <dependency>
       <groupId>io.jenkins.plugins</groupId>
+      <artifactId>commons-lang3-api</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.jenkins.plugins</groupId>
       <artifactId>ionicons-api</artifactId>
     </dependency>
     <dependency>
