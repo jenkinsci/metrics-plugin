@@ -68,6 +68,8 @@
     <revision>4.2.37</revision>
     <changelist>999999-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
+    <hpi.bundledArtifacts>metrics-core,metrics-healthchecks,metrics-jmx,metrics-json,metrics-jvm,metrics-servlet</hpi.bundledArtifacts>
+    <hpi.strictBundledArtifacts>true</hpi.strictBundledArtifacts>
     <ban-junit4-imports.skip>false</ban-junit4-imports.skip>
   </properties>
 
