@@ -65,7 +65,7 @@
     <!-- https://www.jenkins.io/doc/developer/plugin-development/choosing-jenkins-baseline/ -->
     <jenkins.baseline>2.504</jenkins.baseline>
     <jenkins.version>${jenkins.baseline}.3</jenkins.version>
-    <revision>4.2.37</revision>
+    <revision>4.2.38</revision>
     <changelist>999999-SNAPSHOT</changelist>
     <gitHubRepo>jenkinsci/${project.artifactId}-plugin</gitHubRepo>
     <hpi.bundledArtifacts>metrics-core,metrics-healthchecks,metrics-jmx,metrics-json,metrics-jvm,metrics-servlet</hpi.bundledArtifacts>
