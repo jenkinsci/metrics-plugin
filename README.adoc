@@ -117,6 +117,18 @@ The JVM may fail to allocate memory even if the amount of used memory does not e
 
 `vm.memory.total.used` (gauge):: The total amount of memory that the Jenkins JVM is currently using.(Units of measurement: bytes)
 
+`vm.memory.BufferPool.direct.capacity` (gauge):: Estimate of the total capacity of the buffers in the direct pool. (Unites of measurement: bytes)
+
+`vm.memory.BufferPool.direct.count` (gauge):: Estimated number of buffers in the direct pool. (Unites of measurement: bytes)
+
+`vm.memory.BufferPool.direct.used` (gauge):: Estimate of the memory that the JVM is using in the direct pool. (Unites of measurement: bytes)
+
+`vm.memory.BufferPool.mapped.capacity` (gauge):: Estimate of the total capacity of the buffers in the mapped pool. (Unites of measurement: bytes)
+
+`vm.memory.BufferPool.mapped.count` (gauge):: Estimated number of buffers in the mapped pool. (Unites of measurement: bytes)
+
+`vm.memory.BufferPool.mapped.used` (gauge):: Estimate of the memory that the JVM is using in the mapped pool. (Unites of measurement: bytes)
+
 `vm.new.count` (gauge):: The number of threads in the Jenkins JVM that have not currently started execution.
 
 `vm.runnable.count` (gauge):: The number of threads in the Jenkins JVM that are currently executing in the JVM.
