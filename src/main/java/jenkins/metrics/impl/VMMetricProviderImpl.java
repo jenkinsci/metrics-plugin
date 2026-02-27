@@ -30,6 +30,7 @@ import com.codahale.metrics.Metric;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricSet;
 import com.codahale.metrics.SlidingTimeWindowReservoir;
+import com.codahale.metrics.jvm.BufferPoolMetricSet;
 import com.codahale.metrics.jvm.ClassLoadingGaugeSet;
 import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
 import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
@@ -117,6 +118,10 @@ public class VMMetricProviderImpl extends MetricProvider {
                 memoryMetrics.put(MetricRegistry.name(key, "x100", "window", "1h"),
                         new AutoSamplingHistogram(gauge, new SlidingTimeWindowReservoir(1, TimeUnit.HOURS)));
             }
+        }
+
+        for (Map.Entry<String, Metric> entry : new BufferPoolMetricSet(ManagementFactory.getPlatformMBeanServer()).getMetrics().entrySet()) {
+            memoryMetrics.put(MetricRegistry.name("BufferPool", entry.getKey()), entry.getValue());
         }
 
         FileDescriptorRatioGauge fileDescriptors = new FileDescriptorRatioGauge();
